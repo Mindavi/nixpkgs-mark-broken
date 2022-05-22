@@ -57,5 +57,7 @@ def print_build_result(build_id):
     sys.stdout.flush()
 
 pool = multiprocessing.Pool(500)
+start_retrieve_build_results = datetime.datetime.now()
 pool.map(print_build_result, all_builds_in_eval)
+print("retrieving build results took", datetime.datetime.now() - start_retrieve_build_results)
 
