@@ -1,5 +1,5 @@
 #! /usr/bin/env nix-shell
-#! nix-shell -i python3 -p "pkgs.python3.withPackages(ps: [ ps.requests ])"
+#! nix-shell -i python3 --pure -p "pkgs.python3.withPackages(ps: [ ps.requests ])"
 
 import requests
 import datetime
@@ -55,7 +55,8 @@ def print_build_result(build_id):
     #   2: indirect failure
     #   11: output limit exceeded
     print(f"status {status}, id {build_id}, job {job}")
-    sys.stdout.flush()
+    if status != 0:
+        sys.stdout.flush()
 
 pool = multiprocessing.Pool(500)
 start_retrieve_build_results = datetime.datetime.now()
