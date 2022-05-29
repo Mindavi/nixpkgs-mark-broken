@@ -53,12 +53,14 @@ def print_build_result(build_id):
     #   0: success
     #   1: Build returned a non-zero exit code 
     #   2: indirect failure
+    #   4: timed out (?)
+    #   7: timed out
     #   11: output limit exceeded
     print(f"status {status}, id {build_id}, job {job}")
     if status != 0:
         sys.stdout.flush()
 
-pool = multiprocessing.Pool(500)
+pool = multiprocessing.Pool(250)
 start_retrieve_build_results = datetime.datetime.now()
 pool.map(print_build_result, all_builds_in_eval)
 print("retrieving build results took", datetime.datetime.now() - start_retrieve_build_results)
