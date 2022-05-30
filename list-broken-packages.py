@@ -52,9 +52,13 @@ def print_build_result(build_id):
     #   None: not built yet
     #   0: success
     #   1: Build returned a non-zero exit code 
-    #   2: indirect failure
-    #   4: timed out (?)
+    #   2: dependency failed
+    #   3: aborted
+    #   4: canceled by the user
+    #   6: failed with output
     #   7: timed out
+    #   9: aborted
+    #   10: log size limit exceeded
     #   11: output limit exceeded
     print(f"status {status}, id {build_id}, job {job}")
     if status != 0:
