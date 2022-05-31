@@ -17,6 +17,9 @@ start = datetime.datetime.now()
 evals = requests.get(f"https://hydra.nixos.org/jobset/{jobset}/evals", headers={"Accept": "application/json"})
 print("requesting evals took", datetime.datetime.now() - start)
 
+#with open("evals.json", "w") as eval_file:
+#    print(evals.text, file=eval_file)
+
 # TODO(ricsch): Handle errors
 
 # convert to list?
@@ -38,6 +41,9 @@ builds = requests.get(f"https://hydra.nixos.org/eval/{last_eval_id}", headers={"
 #print(builds.json())
 all_builds_in_eval = builds.json()["builds"]
 print(f"number of builds: {len(all_builds_in_eval)}")
+
+#with open("builds.json", "w") as build_file:
+#    print(builds.text, file=build_file)
 
 # TODO(ricsch): Parallelize?
 def print_build_result(build_id):
