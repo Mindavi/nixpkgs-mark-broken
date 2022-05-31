@@ -93,14 +93,17 @@ def attemptToMarkBroken(attr: str, platforms: Iterable[str]):
         return
 
     # broken should evaluate to true now (for the given platform(s))
-    nixMarkedCheck = subprocess.run([ "nix-instantiate", "--eval", "--json", "-E", f"with import ./. {{}}; {attr}.meta.broken" ], capture_output=True)
-    if nixMarkedCheck.returncode != 0:
-        shutil.move(f"{nixFile}.bak", nixFile)
-        failMark(attr, "Failed to check meta.broken")
-        return
-
-    metaBrokenValue = json.loads(nixMarkedCheck.stdout.decode('utf-8'))
-    print(metaBrokenValue)
+    for platform in platforms:
+        nixMarkedCheck = subprocess.run([ "nix-instantiate", "--eval", "--json", "-E", f"with import ./. {{ localSystem = \"{platform}\"; }}; {attr}.meta.broken" ], capture_output=True)
+        if nixMarkedCheck.returncode != 0:
+            shutil.move(f"{nixFile}.bak", nixFile)
+            failMark(attr, f"Failed to check {attr}.meta.broken for platform {platform}")
+            return
+        markedSuccessfully = json.loads(nixMarkedCheck.stdout.decode('utf-8'))
+        if not markedSuccessfully:
+            shutil.move(f"{nixFile}.bak", nixFile)
+            failMark(attr, f"{attr}.meta.broken doesn't evaluate to true for {platform}.")
+            return
 
     os.remove(f"{nixFile}.bak")
 
