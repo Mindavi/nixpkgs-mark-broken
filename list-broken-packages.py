@@ -8,6 +8,7 @@ import multiprocessing
 
 # Selecting a different jobset may be handy for debugging the script.
 jobset = "nixpkgs/trunk"
+#jobset = "nixos/release-22.05"
 #jobset = "nixpkgs/cross-trunk"
 #jobset = "patchelf/master"
 
