@@ -1,5 +1,5 @@
 #!/usr/bin/env nix-shell
-#!nix-shell --pure -i python3 -p nix gnused "python3.withPackages( ps: [ ] )"
+#!nix-shell --pure -i python3 -p nix gnused "python3.withPackages( ps: [ ps.click ] )"
 
 import filecmp
 import json
@@ -9,6 +9,8 @@ import subprocess
 import sys
 
 from collections.abc import Iterable
+
+import click
 
 denyFileList = [
     "node-packages.nix", # node, it will mark all node packages as broken
@@ -107,5 +109,6 @@ def attemptToMarkBroken(attr: str, platforms: Iterable[str]):
 
     os.remove(f"{nixFile}.bak")
 
-attemptToMarkBroken("jq", ["aarch64-linux", "x86_64-darwin"])
+if __name__ == "__main__":
+    attemptToMarkBroken("jq", ["aarch64-linux", "x86_64-darwin"])
 
