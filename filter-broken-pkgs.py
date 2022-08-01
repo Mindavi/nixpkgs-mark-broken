@@ -1,5 +1,5 @@
 #!/usr/bin/env nix-shell
-#! nix-shell -i python3 --pure -p "pkgs.python3"
+#! nix-shell -i python3 --pure -p "pkgs.python3.withPackages(ps: with ps;[])"
 
 from collections import defaultdict
 import sys
@@ -43,15 +43,21 @@ with open(sys.argv[1]) as input_file:
             continue
         jobs.append(Job(status, id, job))
 
-#jobs2 = defaultdict(list)
-
-#for job in jobs:
-#    jobs2[job.Name] = job
-
-# Filter (directly) failing jobs
-jobs = list(filter(lambda job: job.Status == "1", jobs))
 jobs.sort()
+jobsd = defaultdict(list)
+
 for job in jobs:
-    #print(job.Platform, '\t', job.Status, job.Name)
-    print(f'{job.Name}.{job.Platform}')
+    jobsd[job.Name].append(job)
+
+for jobname, jobs in jobsd.items():
+    broken = list(filter(lambda job: job.Status == "1", jobs))
+    if len(broken) == 0:
+        continue
+    all_broken = len(jobs) == len(broken)
+    if all_broken:
+        print("! ", end="")
+    #else:
+    #    continue
+    platforms = [x.Platform for x in broken]
+    print(f'{jobname}: {platforms}')
 
