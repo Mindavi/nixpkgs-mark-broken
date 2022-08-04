@@ -6,16 +6,18 @@ import datetime
 import sys
 import multiprocessing
 
+baseurl = "https://hydra.nixos.org"
+
 # Selecting a different jobset may be handy for debugging the script.
 jobset = "nixpkgs/trunk"
 #jobset = "nixos/release-22.05"
 #jobset = "nixpkgs/cross-trunk"
 #jobset = "patchelf/master"
 
-print("listing packages with build status")
+print(f"listing packages with build status from {baseurl}")
 
 start = datetime.datetime.now()
-evals = requests.get(f"https://hydra.nixos.org/jobset/{jobset}/evals", headers={"Accept": "application/json"})
+evals = requests.get(f"{baseurl}/jobset/{jobset}/evals", headers={"Accept": "application/json"})
 print("requesting evals took", datetime.datetime.now() - start)
 
 #with open("evals.json", "w") as eval_file:
@@ -35,7 +37,7 @@ print(f"number of evals: {len(all_evals)}")
 last_eval_id = all_evals[0]["id"]
 print(f"using eval {last_eval_id}")
 
-builds = requests.get(f"https://hydra.nixos.org/eval/{last_eval_id}", headers={"Accept": "application/json"})
+builds = requests.get(f"{baseurl}/eval/{last_eval_id}", headers={"Accept": "application/json"})
 
 # TODO(ricsch): Handle errors
 
@@ -48,7 +50,7 @@ print(f"number of builds: {len(all_builds_in_eval)}")
 
 # TODO(ricsch): Parallelize?
 def print_build_result(build_id):
-    build_result = requests.get(f"https://hydra.nixos.org/build/{build_id}", headers={"Accept": "application/json"})
+    build_result = requests.get(f"{baseurl}/build/{build_id}", headers={"Accept": "application/json"})
     try:
         job = build_result.json()["job"]
         status = build_result.json()["buildstatus"]
