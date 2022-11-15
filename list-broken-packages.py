@@ -20,22 +20,20 @@ start = datetime.datetime.now()
 evals = requests.get(f"{baseurl}/jobset/{jobset}/evals", headers={"Accept": "application/json"})
 print("requesting evals took", datetime.datetime.now() - start)
 
-#with open("evals.json", "w") as eval_file:
-#    print(evals.text, file=eval_file)
+with open("evals.json", "w") as eval_file:
+    print(evals.text, file=eval_file)
 
 # TODO(ricsch): Handle errors
 
 # convert to list?
 all_evals = evals.json()["evals"]
-#all_evals.sort()
-#print("all_evals[0]", all_evals[0])
-#print("all_evals[10]", all_evals[10])
 
 print(f"number of evals: {len(all_evals)}")
 
 # typically the last eval?
 last_eval_id = all_evals[0]["id"]
 print(f"using eval {last_eval_id}")
+sys.stdout.flush()
 
 builds = requests.get(f"{baseurl}/eval/{last_eval_id}", headers={"Accept": "application/json"})
 
@@ -45,8 +43,8 @@ builds = requests.get(f"{baseurl}/eval/{last_eval_id}", headers={"Accept": "appl
 all_builds_in_eval = builds.json()["builds"]
 print(f"number of builds: {len(all_builds_in_eval)}")
 
-#with open("builds.json", "w") as build_file:
-#    print(builds.text, file=build_file)
+with open("builds.json", "w") as build_file:
+    print(builds.text, file=build_file)
 
 # TODO(ricsch): Parallelize?
 def print_build_result(build_id):
