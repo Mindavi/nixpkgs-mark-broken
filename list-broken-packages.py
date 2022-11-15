@@ -6,76 +6,86 @@ import datetime
 import sys
 import multiprocessing
 
-baseurl = "https://hydra.nixos.org"
-#baseurl = "http://localhost:3000"
+class EvalFetcher:
+    def fetch(self, baseurl, jobset):
+        start = datetime.datetime.now()
+        evals = requests.get(f"{baseurl}/jobset/{jobset}/evals", headers={"Accept": "application/json"})
+        print("requesting evals took", datetime.datetime.now() - start)
 
-# Selecting a different jobset may be handy for debugging the script.
-jobset = "nixpkgs/trunk"
-#jobset = "nixos/release-22.05"
-#jobset = "nixpkgs/cross-trunk"
-#jobset = "patchelf/master"
+        with open("evals.json", "w") as eval_file:
+            print(evals.text, file=eval_file)
 
-#jobset = "nixpkgs/nixpkgs-master"
+        # TODO(ricsch): Handle errors
 
-print(f"listing packages with build status from {baseurl}")
+        # convert to list?
+        all_evals = evals.json()["evals"]
 
-start = datetime.datetime.now()
-evals = requests.get(f"{baseurl}/jobset/{jobset}/evals", headers={"Accept": "application/json"})
-print("requesting evals took", datetime.datetime.now() - start)
+        print(f"number of evals: {len(all_evals)}")
 
-with open("evals.json", "w") as eval_file:
-    print(evals.text, file=eval_file)
+        return all_evals
 
-# TODO(ricsch): Handle errors
+if __name__ == "__main__":
+    #baseurl = "https://hydra.nixos.org"
+    baseurl = "http://localhost:3000"
 
-# convert to list?
-all_evals = evals.json()["evals"]
+    # Selecting a different jobset may be handy for debugging the script.
+    #jobset = "nixpkgs/trunk"
+    #jobset = "nixos/release-22.05"
+    #jobset = "nixpkgs/cross-trunk"
+    #jobset = "patchelf/master"
 
-print(f"number of evals: {len(all_evals)}")
+    jobset = "nixpkgs/nixpkgs-master"
 
-# typically the last eval?
-last_eval_id = all_evals[0]["id"]
-print(f"using eval {last_eval_id}")
-sys.stdout.flush()
+    print(f"listing packages with build status from {baseurl}")
 
-builds = requests.get(f"{baseurl}/eval/{last_eval_id}", headers={"Accept": "application/json"})
+    fetcher = EvalFetcher()
+    all_evals = fetcher.fetch(baseurl, jobset)
 
-# TODO(ricsch): Handle errors
+    # typically the last eval?
+    last_eval_id = all_evals[0]["id"]
+    print(f"using eval {last_eval_id}")
+    sys.stdout.flush()
 
-#print(builds.json())
-all_builds_in_eval = builds.json()["builds"]
-print(f"number of builds: {len(all_builds_in_eval)}")
+    builds = requests.get(f"{baseurl}/eval/{last_eval_id}", headers={"Accept": "application/json"})
 
-with open("builds.json", "w") as build_file:
-    print(builds.text, file=build_file)
+    # TODO(ricsch): Handle errors
 
-# TODO(ricsch): Parallelize?
-def print_build_result(build_id):
-    build_result = requests.get(f"{baseurl}/build/{build_id}", headers={"Accept": "application/json"})
-    try:
-        job = build_result.json()["job"]
-        status = build_result.json()["buildstatus"]
-    except:
-        print(f"build {build_id} unknown status, {build_result}", file=sys.stderr)
-        return
-    # status can be:
-    #   None: not built yet
-    #   0: success
-    #   1: Build returned a non-zero exit code 
-    #   2: dependency failed
-    #   3: aborted
-    #   4: canceled by the user
-    #   6: failed with output
-    #   7: timed out
-    #   9: aborted
-    #   10: log size limit exceeded
-    #   11: output limit exceeded
-    print(f"status {status}, id {build_id}, job {job}")
-    if status != 0:
-        sys.stdout.flush()
+    #print(builds.json())
+    all_builds_in_eval = builds.json()["builds"]
+    print(f"number of builds: {len(all_builds_in_eval)}")
 
-pool = multiprocessing.Pool(250)
-start_retrieve_build_results = datetime.datetime.now()
-pool.map(print_build_result, all_builds_in_eval)
-print("retrieving build results took", datetime.datetime.now() - start_retrieve_build_results)
+    with open("builds.json", "w") as build_file:
+        print(builds.text, file=build_file)
+
+    # TODO(ricsch): Parallelize?
+    def print_build_result(build_id):
+        build_result = requests.get(f"{baseurl}/build/{build_id}", headers={"Accept": "application/json"})
+        try:
+            job = build_result.json()["job"]
+            status = build_result.json()["buildstatus"]
+        except:
+            print(f"build {build_id} unknown status, {build_result}", file=sys.stderr)
+            return
+        # status can be:
+        #   None: not built yet
+        #   0: success
+        #   1: Build returned a non-zero exit code
+        #   2: dependency failed
+        #   3: aborted
+        #   4: canceled by the user
+        #   6: failed with output
+        #   7: timed out
+        #   9: aborted
+        #   10: log size limit exceeded
+        #   11: output limit exceeded
+        print(f"status {status}, id {build_id}, job {job}")
+        if status != 0:
+            sys.stdout.flush()
+
+    pool = multiprocessing.Pool(250)
+    start_retrieve_build_results = datetime.datetime.now()
+    pool.map(print_build_result, all_builds_in_eval)
+    print("retrieving build results took", datetime.datetime.now() - start_retrieve_build_results)
+
+
 
