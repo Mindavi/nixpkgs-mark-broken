@@ -7,12 +7,15 @@ import sys
 import multiprocessing
 
 baseurl = "https://hydra.nixos.org"
+#baseurl = "http://localhost:3000"
 
 # Selecting a different jobset may be handy for debugging the script.
 jobset = "nixpkgs/trunk"
 #jobset = "nixos/release-22.05"
 #jobset = "nixpkgs/cross-trunk"
 #jobset = "patchelf/master"
+
+#jobset = "nixpkgs/nixpkgs-master"
 
 print(f"listing packages with build status from {baseurl}")
 
