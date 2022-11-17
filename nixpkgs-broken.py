@@ -1,12 +1,13 @@
 #! /usr/bin/env nix-shell
 #! nix-shell -i python3 --pure -p "pkgs.python3.withPackages(ps: [ ps.requests ])"
 
-import requests
+import argparse
 import datetime
-import sys
-import multiprocessing
-import sqlite3
 import json
+import multiprocessing
+import requests
+import sqlite3
+import sys
 
 class EvalFetcher:
     def fetch(self, baseurl, jobset):
