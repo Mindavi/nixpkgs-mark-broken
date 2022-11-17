@@ -162,49 +162,6 @@ if __name__ == "__main__":
 
     database = Database('hydra.db')
 
-    # TODO(ricsch): Parallelize?
-    def record_build_result(build_id):
-        build_result = requests.get(f"{baseurl}/build/{build_id}", headers={"Accept": "application/json"})
-        try:
-            job = build_result.json()["job"]
-            status = build_result.json()["buildstatus"]
-            timestamp = build_result.json()["timestamp"]
-        except:
-            print(f"build {build_id} unknown status, {build_result}", file=sys.stderr)
-            return
-        # status can be:
-        #   None: not built yet
-        #   0: success
-        #   1: Build returned a non-zero exit code
-        #   2: dependency failed
-        #   3: aborted
-        #   4: canceled by the user
-        #   6: failed with output
-        #   7: timed out
-        #   9: aborted
-        #   10: log size limit exceeded
-        #   11: output limit exceeded
-        if "." in job:
-            jobname, system = job.rsplit(".", maxsplit=1)
-            # Sanity check for system name.
-            assert(system in ["aarch64-linux", "x86_64-linux", "x86_64-darwin", "aarch64-darwin"])
-        else:
-            print(f"Job without system (job: {job}, id: {build_id}, status: {status}), skipping")
-            return
-        result = (build_id, baseurl, last_eval_id, timestamp, status, jobname, system)
-        try:
-            database.insert_build_result(
-                build_id,
-                baseurl,
-                last_eval_id,
-                timestamp,
-                status,
-                jobname,
-                system)
-        except Exception as e:
-            print("Sqlite error:", e)
-        print(f"status {status}, id {build_id}, job {job}")
-
     print(f"total build ids: {len(all_builds_in_eval)}")
     already_known_builds = database.get_known_builds(last_eval_id)
     to_remove = []
@@ -231,7 +188,7 @@ if __name__ == "__main__":
             database.insert_build_result(
                 build_id,
                 baseurl,
-                last_eval_id,
+                eval_id,
                 timestamp,
                 status,
                 jobname,
