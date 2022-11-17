@@ -6,6 +6,7 @@ import datetime
 import sys
 import multiprocessing
 import sqlite3
+import json
 
 class EvalFetcher:
     def fetch(self, baseurl, jobset):
@@ -25,6 +26,30 @@ class EvalFetcher:
 
         return all_evals
 
+    def fake(self):
+        with open("evals.json", "r") as eval_file:
+            return json.load(eval_file)["evals"]
+
+class BuildFetcher:
+    def fetch(self, baseurl, eval_id):
+        builds = requests.get(f"{baseurl}/eval/{last_eval_id}", headers={"Accept": "application/json"})
+
+        # TODO(ricsch): Handle errors
+
+        #print(builds.json())
+        all_builds_in_eval = builds.json()["builds"]
+        print(f"number of builds: {len(all_builds_in_eval)}")
+
+        with open("builds.json", "w") as build_file:
+            print(builds.text, file=build_file)
+
+        return all_builds_in_eval
+
+    def fake(self):
+        with open("builds.json", "r") as build_file:
+            return json.load(build_file)["builds"]
+
+
 if __name__ == "__main__":
     baseurl = "https://hydra.nixos.org"
     #baseurl = "http://localhost:3000"
@@ -39,24 +64,18 @@ if __name__ == "__main__":
 
     print(f"listing packages with build status from {baseurl}")
 
-    fetcher = EvalFetcher()
-    all_evals = fetcher.fetch(baseurl, jobset)
+    evalfetcher = EvalFetcher()
+    #all_evals = evalfetcher.fetch(baseurl, jobset)
+    all_evals = evalfetcher.fake()
 
     # typically the last eval?
     last_eval_id = all_evals[0]["id"]
     print(f"using eval {last_eval_id}")
     sys.stdout.flush()
 
-    builds = requests.get(f"{baseurl}/eval/{last_eval_id}", headers={"Accept": "application/json"})
-
-    # TODO(ricsch): Handle errors
-
-    #print(builds.json())
-    all_builds_in_eval = builds.json()["builds"]
-    print(f"number of builds: {len(all_builds_in_eval)}")
-
-    with open("builds.json", "w") as build_file:
-        print(builds.text, file=build_file)
+    buildfetcher = BuildFetcher()
+    #all_builds_in_eval = buildfetcher.fetch(baseurl, last_eval_id)
+    all_builds_in_eval = buildfetcher.fake()
 
     sql_con = sqlite3.connect("hydra.db")
     cursor = sql_con.cursor()
@@ -78,6 +97,7 @@ if __name__ == "__main__":
         try:
             job = build_result.json()["job"]
             status = build_result.json()["buildstatus"]
+            timestamp = build_result.json()["timestamp"]
         except:
             print(f"build {build_id} unknown status, {build_result}", file=sys.stderr)
             return
@@ -93,14 +113,33 @@ if __name__ == "__main__":
         #   9: aborted
         #   10: log size limit exceeded
         #   11: output limit exceeded
-        jobname, system = job.rsplit(".", maxsplit=1)
-        result = (build_id, baseurl, last_eval_id, 1234, status, jobname, system)
-        cursor.execute("INSERT INTO build_results VALUES(?, ?, ?, ?, ?, ?, ?)", result)
-        sql_con.commit()
+        if "." in job:
+            jobname, system = job.rsplit(".", maxsplit=1)
+        else:
+            print(f"Job without system (job: {job}, id: {build_id}, status: {status}), skipping")
+            return
+        result = (build_id, baseurl, last_eval_id, timestamp, status, jobname, system)
+        try:
+            cursor.execute("INSERT INTO build_results VALUES(?, ?, ?, ?, ?, ?, ?)", result)
+            sql_con.commit()
+        except Exception as e:
+            print("Sqlite error:", e)
         print(f"status {status}, id {build_id}, job {job}")
 
-    pool = multiprocessing.Pool(250)
+    print(f"total build ids: {len(all_builds_in_eval)}")
+    already_known_builds = cursor.execute("SELECT id, status FROM build_results WHERE eval_id = ?", (last_eval_id,))
+    to_remove = []
+    for [build_id, status] in already_known_builds:
+        #if status != 0:
+        #    continue
+        to_remove.append(build_id)
+    build_ids_to_check = list(set(all_builds_in_eval) - set(to_remove))
+    print(f"to check: {len(build_ids_to_check)}")
+
+    #pool = multiprocessing.Pool(250)
     start_retrieve_build_results = datetime.datetime.now()
-    pool.map(print_build_result, all_builds_in_eval)
+    #pool.map(print_build_result, build_ids_to_check)
+    for id in build_ids_to_check:
+        print_build_result(id)
     print("retrieving build results took", datetime.datetime.now() - start_retrieve_build_results)
 
