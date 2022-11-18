@@ -86,6 +86,10 @@ class Database:
             found_builds.append((build_id, status))
         return found_builds
 
+    def get_build_id(self, build_id):
+        res = self.cursor.execute("SELECT id, status FROM build_results WHERE id = ?", (build_id,))
+        return res.fetchone()
+
 class BuildFetcher(Process):
     def __init__(self, baseurl, work_queue, result_queue):
         super(BuildFetcher, self).__init__()
@@ -165,8 +169,13 @@ if __name__ == "__main__":
     print(f"total build ids: {len(all_builds_in_eval)}")
     already_known_builds = database.get_known_builds(last_eval_id)
     to_remove = []
+    # Skip all builds that were in the same eval and which we already stored data for.
     for [build_id, status] in already_known_builds:
         to_remove.append(build_id)
+    # Skip all builds we already have data for from a different eval.
+    for build_id in all_builds_in_eval:
+        if database.get_build_id(build_id) != None:
+            to_remove.append(build_id)
     build_ids_to_check = list(set(all_builds_in_eval) - set(to_remove))
     print(f"to check: {len(build_ids_to_check)}")
 
