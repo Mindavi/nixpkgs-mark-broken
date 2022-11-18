@@ -97,6 +97,10 @@ class Database:
         res = self.cursor.execute("SELECT id, status FROM build_results WHERE id = ?", (build_id,))
         return res.fetchone()
 
+    def update_build_status(self, build_id, new_status):
+        self.cursor.execute("UPDATE build_results SET status = ? WHERE id = ?", (new_status, build_id))
+        self.connection.commit()
+
 class BuildFetcher(Process):
     def __init__(self, baseurl, work_queue, result_queue):
         super(BuildFetcher, self).__init__()
@@ -187,8 +191,8 @@ if __name__ == "__main__":
         found_item = database.get_build_id(build_id)
         if found_item != None:
             build_id, status = found_item
+            # We want to update the status for this build, so don't put it in the remove list.
             if status == None:
-                print(f"Found build id {build_id} with no status yet, still needs an update")
                 continue
             to_remove.append(build_id)
     build_ids_to_check = list(set(all_builds_in_eval) - set(to_remove))
@@ -218,13 +222,12 @@ if __name__ == "__main__":
         build_id, baseurl, eval_id, timestamp, status, jobname, system = result
         # TODO(ricsch): Handle builds that require an updated status.
         if database.get_build_id(build_id) != None:
-            print(f"TODO(ricsch): Update DB row instead of inserting new row: {build_id}")
+            # Status is still none, no need to update DB row.
             if status == None:
                 continue
             else:
-                print(f"Note: build {build_id} has new status {status}")
-                continue
-        try:
+                database.update_build_status(build_id, status)
+        else:
             database.insert_build_result(
                 build_id,
                 baseurl,
@@ -233,8 +236,6 @@ if __name__ == "__main__":
                 status,
                 jobname,
                 system)
-        except Exception as e:
-            print("Sqlite error:", e)
         number += 1
         print(f"{number}/{len(build_ids_to_check)}: status {status}, id {build_id}, job {jobname}, system {system}")
     work_queue.join()
