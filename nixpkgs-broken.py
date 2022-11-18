@@ -123,7 +123,10 @@ class BuildFetcher(Process):
             if "." in job:
                 jobname, system = job.rsplit(".", maxsplit=1)
                 # Sanity check for system name.
-                assert(system in ["aarch64-linux", "x86_64-linux", "x86_64-darwin", "aarch64-darwin"])
+                known_system = system in ["aarch64-linux", "x86_64-linux", "x86_64-darwin", "aarch64-darwin"]
+                if not known_system:
+                    print(f"Unknown system {system} in job {job}")
+                assert(known_system)
                 self.result_queue.put((build_id, baseurl, last_eval_id, timestamp, status, jobname, system))
             else:
                 print(f"Job without system (job: {job}, id: {build_id}, status: {status}), skipping")
