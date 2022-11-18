@@ -194,7 +194,15 @@ if __name__ == "__main__":
     for i in range(num_processes):
         work_queue.put(None)
 
-    for result in iter(result_queue.get, None):
+    number = 0
+    none_counter = 0
+    for result in iter(result_queue.get, "The_End"):
+        if result == None:
+            none_counter += 1
+            # print(f"A worker exited, {num_processes - none_counter} left")
+            if none_counter == num_processes:
+                result_queue.put("The_End")
+            continue
         build_id, baseurl, eval_id, timestamp, status, jobname, system = result
         try:
             database.insert_build_result(
@@ -207,7 +215,8 @@ if __name__ == "__main__":
                 system)
         except Exception as e:
             print("Sqlite error:", e)
-        print(f"status {status}, id {build_id}, job {job}")
+        number += 1
+        print(f"{number}/{len(build_ids_to_check)}: status {status}, id {build_id}, job {jobname}, system {system}")
     work_queue.join()
 
     print("retrieving build results took", datetime.datetime.now() - start_retrieve_build_results)
