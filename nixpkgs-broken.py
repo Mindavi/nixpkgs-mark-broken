@@ -177,7 +177,12 @@ if __name__ == "__main__":
         to_remove.append(build_id)
     # Skip all builds we already have data for from a different eval.
     for build_id in all_builds_in_eval:
-        if database.get_build_id(build_id) != None:
+        found_item = database.get_build_id(build_id)
+        if found_item != None:
+            build_id, status = found_item
+            if status == None:
+                print(f"Found build id {build_id} with no status yet, still needs an update")
+                continue
             to_remove.append(build_id)
     build_ids_to_check = list(set(all_builds_in_eval) - set(to_remove))
     print(f"to check: {len(build_ids_to_check)}")
@@ -204,6 +209,14 @@ if __name__ == "__main__":
                 result_queue.put("The_End")
             continue
         build_id, baseurl, eval_id, timestamp, status, jobname, system = result
+        # TODO(ricsch): Handle builds that require an updated status.
+        if database.get_build_id(build_id) != None:
+            print(f"TODO(ricsch): Update DB row instead of inserting new row: {build_id}")
+            if status == None:
+                continue
+            else:
+                print(f"Note: build {build_id} has new status {status}")
+                continue
         try:
             database.insert_build_result(
                 build_id,
@@ -220,3 +233,4 @@ if __name__ == "__main__":
     work_queue.join()
 
     print("retrieving build results took", datetime.datetime.now() - start_retrieve_build_results)
+
