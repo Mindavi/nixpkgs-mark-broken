@@ -1,6 +1,13 @@
 #! /usr/bin/env nix-shell
 #! nix-shell -i python3 --pure -p "pkgs.python3.withPackages(ps: [ ps.requests ])"
 
+# consider using click to make the CLI
+# - update (updates the local database with the latest eval)
+# - update --eval <eval_id> (updates the local database with a specific eval)
+# - update --use-cached (updates the local database with the latest cached eval)
+# - update --missing-status (update all rows in the local database that are missing a build status)
+# - mark-broken <path/to/nixpkgs> (generates a list of broken attrs/packages and marks them broken)
+# - mark-broken --dry-run <path/to/nixpkgs> (generates a list of broken attrs/packages to be marked broken)
 import argparse
 import datetime
 import json
