@@ -117,6 +117,7 @@ class BuildFetcher(Process):
                 job = build_result.json()["job"]
                 status = build_result.json()["buildstatus"]
                 timestamp = build_result.json()["timestamp"]
+                build_system = build_result.json()["system"]
             except:
                 print(f"build {build_id} unknown status, {build_result}", file=sys.stderr)
                 self.work_queue.task_done()
@@ -142,6 +143,8 @@ class BuildFetcher(Process):
                 if not known_system:
                     print(f"Unknown system {system} in job {job} with id {build_id}, skipping")
                 else:
+                    # For now, make this a hard assumption. We can always relax later.
+                    assert(system == build_system)
                     self.result_queue.put((build_id, baseurl, last_eval_id, timestamp, status, jobname, system))
             else:
                 print(f"Job without system (job: {job}, id: {build_id}, status: {status}), skipping")
