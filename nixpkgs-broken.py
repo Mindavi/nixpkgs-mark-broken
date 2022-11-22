@@ -8,6 +8,8 @@
 # - update --missing-status (update all rows in the local database that are missing a build status)
 # - mark-broken <path/to/nixpkgs> (generates a list of broken attrs/packages and marks them broken)
 # - mark-broken --dry-run <path/to/nixpkgs> (generates a list of broken attrs/packages to be marked broken)
+
+#💡 the hydra endpoint /{project-id}/{jobset-id}/{job-id}/latest (as documented here: https://github.com/NixOS/hydra/issues/1036) will return the latest _working_ build for a job! This makes it very easy to see how long a job has been broken already.
 import argparse
 import datetime
 import json
