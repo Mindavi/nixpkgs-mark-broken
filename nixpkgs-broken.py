@@ -103,6 +103,11 @@ class Database:
         self.cursor.execute("UPDATE build_results SET status = ? WHERE id = ?", (new_status, build_id))
         self.connection.commit()
 
+    def get_broken_builds(self):
+        # TODO(ricsch): Select only latest builds (highest timestamp per job.system combination)
+        res = self.cursor.execute("SELECT id, status, job, system FROM build_results WHERE status != 0")
+        return res.fetchall()
+
 class BuildFetcher(Process):
     def __init__(self, baseurl, work_queue, result_queue):
         super(BuildFetcher, self).__init__()
@@ -153,6 +158,52 @@ class BuildFetcher(Process):
         # Call task_done() for the 'None' item too.
         self.work_queue.task_done()
 
+def list_broken_pkgs():
+    print("Listing broken pkgs")
+    database = Database('hydra.db')
+    broken_builds = database.get_broken_builds()
+    already_done_jobs = []
+    never_built_ok = []
+    previously_successful = []
+    print(f"There are {len(broken_builds)} builds to consider")
+    counter = 0
+    for [id, status, job, system] in broken_builds:
+        counter += 1
+        if status != 1:
+            continue
+        if 'Packages.' in job or 'Packages_' in job or 'linuxKernel.' in job or 'linuxPackages_' in job:
+            continue
+        if (job, system, status) in already_done_jobs:
+            #print(f"Skip duplicate job {job}.{system}")
+            continue
+        already_done_jobs.append((job, system, status))
+        # print(id, status, job, system)
+        url = f"https://hydra.nixos.org/job/nixpkgs/trunk/{job}.{system}/latest"
+        overview_url = f"https://hydra.nixos.org/job/nixpkgs/trunk/{job}.{system}"
+        res = requests.get(url, headers={"Accept": "application/json"}).json()
+        if 'error' in res:
+            #print(f"id {id} was never successful: {job}.{system}")
+            never_built_ok.append((id, status, job, system))
+        else:
+            timestamp = res['timestamp']
+            human_time = datetime.datetime.fromtimestamp(timestamp)
+            #print(f"id {res['id']} last ok build was {human_time} (unix: {timestamp}): {job}.{system}")
+            previously_successful.append((id, status, job, system, timestamp))
+        if counter % 100 == 0:
+            print(f"Retrieved data for {counter}/{len(broken_builds)} packages")
+        # print(f'\t{overview_url}')
+
+    previously_successful.sort(key=lambda k: k[4])
+    for [id, status, job, system, timestamp] in previously_successful:
+        overview_url = f"https://hydra.nixos.org/job/nixpkgs/trunk/{job}.{system}"
+        human_time = datetime.datetime.fromtimestamp(timestamp)
+        print(f"Job {job}.{system} last successful build was at time {human_time} (unix: {timestamp}) with build id {res['id']}, overview {overview_url}")
+    never_built_ok.sort(key=lambda k: k[2])
+    for [id, status, job, system] in never_built_ok:
+        overview_url = f"https://hydra.nixos.org/job/nixpkgs/trunk/{job}.{system}"
+        print(f"Job {job}.{system} (id {id}) was never successful, overview {overview_url}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog = 'nixpkgs-broken',
@@ -161,11 +212,17 @@ if __name__ == "__main__":
     parser.add_argument('--baseurl', default='https://hydra.nixos.org', required=False)
     parser.add_argument('--jobset', default='nixpkgs/trunk', required=False)
     parser.add_argument('--use-cached', action='store_true')
+    parser.add_argument('--list-broken-pkgs', action='store_true')
 
     args = parser.parse_args()
     baseurl = args.baseurl
     jobset = args.jobset
     use_cached = args.use_cached
+    list_broken = args.list_broken_pkgs
+
+    if list_broken:
+        list_broken_pkgs()
+        sys.exit(0)
 
     print(f"listing packages with build status from {baseurl}, jobset {jobset}")
 
