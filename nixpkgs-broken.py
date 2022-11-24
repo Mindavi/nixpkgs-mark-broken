@@ -62,6 +62,7 @@ class Database:
         self.connection = sqlite3.connect("hydra.db")
         self.cursor = self.connection.cursor()
 
+        # TODO(ricsch): Add jobset here too.
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS build_results(
         id              INT PRIMARY KEY NOT NULL,
         url             TEXT            NOT NULL,
@@ -105,7 +106,9 @@ class Database:
 
     def get_broken_builds(self):
         # TODO(ricsch): Select only latest builds (highest timestamp per job.system combination)
-        res = self.cursor.execute("SELECT id, status, job, system FROM build_results WHERE status != 0")
+        # res = self.cursor.execute("SELECT id, status, job, system FROM build_results WHERE status != 0")
+
+        res = self.cursor.execute("SELECT id, status, job, system FROM (SELECT id, status, job, system, max(eval_timestamp) over (partition by job, system) max_eval_timestamp FROM build_results) WHERE status != 0 GROUP by job,system")
         return res.fetchall()
 
 class BuildFetcher(Process):
@@ -145,8 +148,11 @@ class BuildFetcher(Process):
                 known_system = system in ["aarch64-linux", "x86_64-linux", "x86_64-darwin", "aarch64-darwin"]
                 # e.g. stdenvBootstrapTools.x86_64-darwin.test, or stdenvBootstrapTools.x86_64-darwin.dist
                 # let's just skip em for now.
+                host_is_not_build = system != build_system
                 if not known_system:
                     print(f"Unknown system {system} in job {job} with id {build_id}, skipping")
+                elif host_is_not_build:
+                    print(f"Host system {system} is not equal to build system {build_system}")
                 else:
                     # For now, make this a hard assumption. We can always relax later.
                     assert(system == build_system)
@@ -158,7 +164,8 @@ class BuildFetcher(Process):
         # Call task_done() for the 'None' item too.
         self.work_queue.task_done()
 
-def list_broken_pkgs():
+# TODO(ricsch): use baseurl and jobset from DB row instead.
+def list_broken_pkgs(baseurl, jobset):
     print("Listing broken pkgs")
     database = Database('hydra.db')
     broken_builds = database.get_broken_builds()
@@ -166,6 +173,7 @@ def list_broken_pkgs():
     never_built_ok = []
     previously_successful = []
     print(f"There are {len(broken_builds)} builds to consider")
+    broken_builds.sort(key=lambda k:k[2])
     counter = 0
     for [id, status, job, system] in broken_builds:
         counter += 1
@@ -178,8 +186,8 @@ def list_broken_pkgs():
             continue
         already_done_jobs.append((job, system, status))
         # print(id, status, job, system)
-        url = f"https://hydra.nixos.org/job/nixpkgs/trunk/{job}.{system}/latest"
-        overview_url = f"https://hydra.nixos.org/job/nixpkgs/trunk/{job}.{system}"
+        url = f"{baseurl}/job/{jobset}/{job}.{system}/latest"
+        overview_url = f"{baseurl}/job/{jobset}/{job}.{system}"
         res = requests.get(url, headers={"Accept": "application/json"}).json()
         if 'error' in res:
             #print(f"id {id} was never successful: {job}.{system}")
@@ -195,13 +203,13 @@ def list_broken_pkgs():
 
     previously_successful.sort(key=lambda k: k[4])
     for [id, status, job, system, timestamp] in previously_successful:
-        overview_url = f"https://hydra.nixos.org/job/nixpkgs/trunk/{job}.{system}"
+        overview_url = f"{baseurl}/job/{jobset}/{job}.{system}"
         human_time = datetime.datetime.fromtimestamp(timestamp)
-        print(f"Job {job}.{system} last successful build was at time {human_time} (unix: {timestamp}) with build id {res['id']}, overview {overview_url}")
+        print(f"{res['id']} was last successful at {timestamp} ({human_time}): {job}.{system}, overview {overview_url}")
     never_built_ok.sort(key=lambda k: k[2])
     for [id, status, job, system] in never_built_ok:
-        overview_url = f"https://hydra.nixos.org/job/nixpkgs/trunk/{job}.{system}"
-        print(f"Job {job}.{system} (id {id}) was never successful, overview {overview_url}")
+        overview_url = f"{baseurl}/job/{jobset}/{job}.{system}"
+        print(f"{id}: {job}.{system} was never successful, overview {overview_url}")
 
 
 if __name__ == "__main__":
@@ -221,7 +229,7 @@ if __name__ == "__main__":
     list_broken = args.list_broken_pkgs
 
     if list_broken:
-        list_broken_pkgs()
+        list_broken_pkgs(baseurl, jobset)
         sys.exit(0)
 
     print(f"listing packages with build status from {baseurl}, jobset {jobset}")
