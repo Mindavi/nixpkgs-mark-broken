@@ -1,5 +1,5 @@
 #! /usr/bin/env nix-shell
-#! nix-shell -i python3 --pure -p "pkgs.python3.withPackages(ps: [ ps.requests ])"
+#! nix-shell -i python3 --pure -p "pkgs.python3.withPackages(ps: with ps; [ requests ])"
 
 # consider using click to make the CLI
 # - update (updates the local database with the latest eval)
@@ -62,10 +62,10 @@ class Database:
         self.connection = sqlite3.connect("hydra.db")
         self.cursor = self.connection.cursor()
 
-        # TODO(ricsch): Add jobset here too.
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS build_results(
         id              INT PRIMARY KEY NOT NULL,
         url             TEXT            NOT NULL,
+        jobset          TEXT            NOT NULL,
         eval_id         INT             NOT NULL,
         eval_timestamp  INT             NOT NULL,
         status          INT,
@@ -73,20 +73,24 @@ class Database:
         system          TEXT            NOT NULL
         );
         """)
+        self.connection.commit()
 
     def insert_build_result(
         self,
         build_id,
         baseurl,
+        jobset,
         eval_id,
         timestamp,
         status,
         jobname,
         system
     ):
-        result = (build_id, baseurl, last_eval_id, timestamp, status, jobname, system)
-        self.cursor.execute("INSERT INTO build_results VALUES(?, ?, ?, ?, ?, ?, ?)",
-            result)
+        result = (build_id, baseurl, jobset, last_eval_id, timestamp, status, jobname, system)
+        self.cursor.execute("""INSERT INTO build_results
+            (id, url, jobset, eval_id, eval_timestamp, status, job, system)
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?)""",
+            (build_id, baseurl, jobset, last_eval_id, timestamp, status, jobname, system))
         self.connection.commit()
 
     def get_known_builds(self, eval_id):
@@ -105,10 +109,8 @@ class Database:
         self.connection.commit()
 
     def get_broken_builds(self):
-        # TODO(ricsch): Select only latest builds (highest timestamp per job.system combination)
-        # res = self.cursor.execute("SELECT id, status, job, system FROM build_results WHERE status != 0")
-
-        res = self.cursor.execute("SELECT id, status, job, system FROM (SELECT id, status, job, system, max(eval_timestamp) over (partition by job, system) max_eval_timestamp FROM build_results) WHERE status != 0 GROUP by job,system")
+        # Select only latest builds (highest timestamp per job.system combination)
+        res = self.cursor.execute("SELECT id, status, job, system, url, jobset FROM (SELECT id, status, job, system, url, jobset, max(eval_timestamp) over (partition by job, system) max_eval_timestamp FROM build_results) WHERE status != 0 GROUP by job,system")
         return res.fetchall()
 
 class BuildFetcher(Process):
@@ -164,10 +166,8 @@ class BuildFetcher(Process):
         # Call task_done() for the 'None' item too.
         self.work_queue.task_done()
 
-# TODO(ricsch): use baseurl and jobset from DB row instead.
-def list_broken_pkgs(baseurl, jobset):
+def list_broken_pkgs(database):
     print("Listing broken pkgs")
-    database = Database('hydra.db')
     broken_builds = database.get_broken_builds()
     already_done_jobs = []
     never_built_ok = []
@@ -175,7 +175,7 @@ def list_broken_pkgs(baseurl, jobset):
     print(f"There are {len(broken_builds)} builds to consider")
     broken_builds.sort(key=lambda k:k[2])
     counter = 0
-    for [id, status, job, system] in broken_builds:
+    for [id, status, job, system, baseurl, jobset] in broken_builds:
         counter += 1
         if status != 1:
             continue
@@ -191,23 +191,23 @@ def list_broken_pkgs(baseurl, jobset):
         res = requests.get(url, headers={"Accept": "application/json"}).json()
         if 'error' in res:
             #print(f"id {id} was never successful: {job}.{system}")
-            never_built_ok.append((id, status, job, system))
+            never_built_ok.append((id, status, job, system, baseurl, jobset))
         else:
             timestamp = res['timestamp']
             human_time = datetime.datetime.fromtimestamp(timestamp)
             #print(f"id {res['id']} last ok build was {human_time} (unix: {timestamp}): {job}.{system}")
-            previously_successful.append((id, status, job, system, timestamp))
+            previously_successful.append((id, status, job, system, timestamp, baseurl, jobset))
         if counter % 100 == 0:
             print(f"Retrieved data for {counter}/{len(broken_builds)} packages")
         # print(f'\t{overview_url}')
 
     previously_successful.sort(key=lambda k: k[4])
-    for [id, status, job, system, timestamp] in previously_successful:
+    for [id, status, job, system, timestamp, baseurl, jobset] in previously_successful:
         overview_url = f"{baseurl}/job/{jobset}/{job}.{system}"
         human_time = datetime.datetime.fromtimestamp(timestamp)
         print(f"{res['id']} was last successful at {timestamp} ({human_time}): {job}.{system}, overview {overview_url}")
     never_built_ok.sort(key=lambda k: k[2])
-    for [id, status, job, system] in never_built_ok:
+    for [id, status, job, system, baseurl, jobset] in never_built_ok:
         overview_url = f"{baseurl}/job/{jobset}/{job}.{system}"
         print(f"{id}: {job}.{system} was never successful, overview {overview_url}")
 
@@ -228,8 +228,11 @@ if __name__ == "__main__":
     use_cached = args.use_cached
     list_broken = args.list_broken_pkgs
 
+    print("Initializing database")
+    database = Database('hydra.db')
+
     if list_broken:
-        list_broken_pkgs(baseurl, jobset)
+        list_broken_pkgs(database)
         sys.exit(0)
 
     print(f"listing packages with build status from {baseurl}, jobset {jobset}")
@@ -249,8 +252,6 @@ if __name__ == "__main__":
         all_builds_in_eval = buildsinevalfetcher.get_cache()
     else:
         all_builds_in_eval = buildsinevalfetcher.fetch(baseurl, last_eval_id)
-
-    database = Database('hydra.db')
 
     print(f"total build ids: {len(all_builds_in_eval)}")
     already_known_builds = database.get_known_builds(last_eval_id)
@@ -303,6 +304,7 @@ if __name__ == "__main__":
             database.insert_build_result(
                 build_id,
                 baseurl,
+                jobset,
                 eval_id,
                 timestamp,
                 status,
