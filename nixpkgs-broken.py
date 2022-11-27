@@ -190,12 +190,10 @@ def list_broken_pkgs(database):
         overview_url = f"{baseurl}/job/{jobset}/{job}.{system}"
         res = requests.get(url, headers={"Accept": "application/json"}).json()
         if 'error' in res:
-            #print(f"id {id} was never successful: {job}.{system}")
             never_built_ok.append((id, status, job, system, baseurl, jobset))
         else:
             timestamp = res['timestamp']
             human_time = datetime.datetime.fromtimestamp(timestamp)
-            #print(f"id {res['id']} last ok build was {human_time} (unix: {timestamp}): {job}.{system}")
             previously_successful.append((id, status, job, system, timestamp, baseurl, jobset))
         if counter % 100 == 0:
             print(f"Retrieved data for {counter}/{len(broken_builds)} packages")
@@ -205,11 +203,11 @@ def list_broken_pkgs(database):
     for [id, status, job, system, timestamp, baseurl, jobset] in previously_successful:
         overview_url = f"{baseurl}/job/{jobset}/{job}.{system}"
         human_time = datetime.datetime.fromtimestamp(timestamp)
-        print(f"{res['id']} was last successful at {timestamp} ({human_time}): {job}.{system}, overview {overview_url}")
+        print(f"build {id} was last successful at {human_time}: {job}.{system}, overview {overview_url}")
     never_built_ok.sort(key=lambda k: k[2])
     for [id, status, job, system, baseurl, jobset] in never_built_ok:
         overview_url = f"{baseurl}/job/{jobset}/{job}.{system}"
-        print(f"{id}: {job}.{system} was never successful, overview {overview_url}")
+        print(f"build {id}: {job}.{system} was never successful, overview {overview_url}")
 
 
 if __name__ == "__main__":
