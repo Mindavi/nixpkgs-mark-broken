@@ -35,7 +35,7 @@ def failMark(attr, message):
     #with open("failed-marks.txt", "a+") as err_file:
     #    print(attr, file=err_file)
 
-def attemptToMarkBroken(attr: str, platforms: Iterable[str]):
+def attemptToMarkBroken(attr: str, platforms: Iterable[str], extraText = ""):
     if len(platforms) == 0:
         return
     for platform in platforms:
@@ -104,12 +104,17 @@ def attemptToMarkBroken(attr: str, platforms: Iterable[str]):
     if platforms == supportedPlatforms:
         brokenText = "true"
 
+    assert(not "#" in extraText and not "/" in extraText)
+    comment = ""
+    if extraText != "":
+      comment = f"  # {extraText}"
+
     # insert broken attribute
     subprocess.run([ "sed", "-i.bak", nixFile, "-r",
         # Delete any old broken mark
         "-e", "/^\s*broken\s*=.*$/d",
         # Insert new broken mark in meta 
-        "-e", "s/(\\s*)meta\\s*=.*\\{/&\\n\\1  broken = " + brokenText + ";/" ]
+        "-e", "s/(\\s*)meta\\s*=.*\\{/&\\n\\1  broken = " + brokenText + ";" + comment + "/" ]
     )
 
     if filecmp.cmp(nixFile, f"{nixFile}.bak", shallow=False):
