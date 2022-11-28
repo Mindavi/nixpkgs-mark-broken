@@ -181,39 +181,38 @@ def list_broken_pkgs(database):
     print(f"There are {len(broken_builds)} builds to consider")
     broken_builds.sort(key=lambda k:k[2])
     counter = 0
-    for [id, status, job, system, baseurl, jobset] in broken_builds:
+    for [id, status, jobname, system, baseurl, jobset] in broken_builds:
         counter += 1
         if status != 1:
             continue
-        if 'Packages.' in job or 'Packages_' in job or 'linuxKernel.' in job or 'linuxPackages_' in job:
+        if 'Packages.' in jobname or 'Packages_' in jobname or 'linuxKernel.' in jobname or 'linuxPackages_' in jobname:
             continue
-        if (job, system, status) in already_done_jobs:
+        if (jobname, system, status) in already_done_jobs:
             #print(f"Skip duplicate job {job}.{system}")
             continue
-        already_done_jobs.append((job, system, status))
-        # print(id, status, job, system)
-        url = f"{baseurl}/job/{jobset}/{job}.{system}/latest"
-        overview_url = f"{baseurl}/job/{jobset}/{job}.{system}"
+        already_done_jobs.append((jobname, system, status))
+        url = f"{baseurl}/job/{jobset}/{jobname}.{system}/latest"
+        overview_url = f"{baseurl}/job/{jobset}/{jobname}.{system}"
         res = requests.get(url, headers={"Accept": "application/json"}).json()
         if 'error' in res:
-            never_built_ok.append((id, status, job, system, baseurl, jobset))
+            never_built_ok.append((id, status, jobname, system, baseurl, jobset))
         else:
             timestamp = res['timestamp']
             human_time = datetime.datetime.fromtimestamp(timestamp)
-            previously_successful.append((id, status, job, system, timestamp, baseurl, jobset))
+            previously_successful.append((id, status, jobname, system, timestamp, baseurl, jobset))
         if counter % 100 == 0:
             print(f"Retrieved data for {counter}/{len(broken_builds)} packages")
         # print(f'\t{overview_url}')
 
     previously_successful.sort(key=lambda k: k[4])
-    for [id, status, job, system, timestamp, baseurl, jobset] in previously_successful:
-        overview_url = f"{baseurl}/job/{jobset}/{job}.{system}"
+    for [id, status, jobname, system, timestamp, baseurl, jobset] in previously_successful:
+        overview_url = f"{baseurl}/job/{jobset}/{jobname}.{system}"
         human_time = datetime.datetime.fromtimestamp(timestamp)
-        print(f"build {id} was last successful at {human_time} (status {status}): {job}.{system}, overview {overview_url}")
+        print(f"build {id} was last successful at {human_time} (status {status}): {jobname}.{system}, overview {overview_url}")
     never_built_ok.sort(key=lambda k: k[2])
-    for [id, status, job, system, baseurl, jobset] in never_built_ok:
-        overview_url = f"{baseurl}/job/{jobset}/{job}.{system}"
-        print(f"build {id}: {job}.{system} was never successful, overview {overview_url}")
+    for [id, status, jobname, system, baseurl, jobset] in never_built_ok:
+        overview_url = f"{baseurl}/job/{jobset}/{jobname}.{system}"
+        print(f"build {id}: {jobname}.{system} was never successful, overview {overview_url}")
 
 
 if __name__ == "__main__":
