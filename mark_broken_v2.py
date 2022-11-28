@@ -63,6 +63,29 @@ def attemptToMarkBroken(attr: str, platforms: Iterable[str]):
     platforms.sort()
     supportedPlatforms.sort()
 
+    alreadyMarkedPlatforms = []
+    for platform in supportedPlatforms:
+        # We'll already mark it broken for this platform.
+        #if platform in platforms:
+        #    continue
+        alreadyMarked = subprocess.run([ "nix-instantiate", "--eval", "--json",
+                                         "-E", f"with import ./. {{ localSystem = \"{platform}\"; }}; {attr}.meta.broken" ], capture_output=True)
+        isMarkedBrokenForPlatform = json.loads(alreadyMarked.stdout.decode('utf-8'))
+        if isMarkedBrokenForPlatform:
+            print(f"Package {attr} is already marked broken for {platform}")
+            alreadyMarkedPlatforms.append(platform)
+
+    alreadyMarkedPlatforms.sort()
+    extraPlatforms = list(set(platforms) - set(alreadyMarkedPlatforms))
+    if alreadyMarkedPlatforms == platforms or len(extraPlatforms) == 0:
+        print(f"Package {attr} is already marked broken for all platforms listed {alreadyMarkedPlatforms}, not doing anything")
+        return
+
+    platforms = list(set(platforms + alreadyMarkedPlatforms))
+    platforms.sort()
+
+    assert(len(platforms) <= len(supportedPlatforms))
+
     brokenText = ""
     for platform in platforms:
         if len(brokenText) > 0:
