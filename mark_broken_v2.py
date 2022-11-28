@@ -108,5 +108,15 @@ def attemptToMarkBroken(attr: str, platforms: Iterable[str]):
     os.remove(f"{nixFile}.bak")
 
 if __name__ == "__main__":
-    attemptToMarkBroken("jq", ["aarch64-linux", "x86_64-darwin"])
+    if len(sys.argv) <= 2:
+        print("Invalid arguments, expected PKGNAME PLATFORMS")
+        sys.exit(1)
+    pkgname = sys.argv[1]
+    platforms = sys.argv[2:]
+    print(f"mark package {pkgname} as broken for {platforms}")
+    for platform in platforms:
+        if platform not in supportedPlatforms:
+            print(f"platform {platform} is not supported, supported platforms {supportedPlatforms}")
+            sys.exit(1)
+    attemptToMarkBroken(pkgname, platforms)
 
