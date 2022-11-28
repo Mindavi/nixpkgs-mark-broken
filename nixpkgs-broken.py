@@ -58,8 +58,8 @@ class BuildsInEvalFetcher:
             return json.load(build_file)["builds"]
 
 class Database:
-    def __init__(self, name):
-        self.connection = sqlite3.connect("hydra.db")
+    def __init__(self, path):
+        self.connection = sqlite3.connect(path)
         self.cursor = self.connection.cursor()
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS build_results(
@@ -248,15 +248,17 @@ if __name__ == "__main__":
     parser.add_argument('--jobset', default='nixpkgs/trunk', required=False)
     parser.add_argument('--use-cached', action='store_true')
     parser.add_argument('--list-broken-pkgs', action='store_true')
+    parser.add_argument('--db-path', default='hydra.db', required=False)
 
     args = parser.parse_args()
     baseurl = args.baseurl
     jobset = args.jobset
     use_cached = args.use_cached
     list_broken = args.list_broken_pkgs
+    db_path = args.db_path
 
     print("Initializing database")
-    database = Database('hydra.db')
+    database = Database(db_path)
 
     if list_broken:
         list_broken_pkgs(database)
