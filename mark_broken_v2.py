@@ -1,5 +1,5 @@
 #!/usr/bin/env nix-shell
-#!nix-shell --pure -i python3 -p nix gnused "python3.withPackages( ps: [ ps.click ] )"
+#!nix-shell --pure -i python3 -p nix gnused "python3.withPackages( ps: with ps; [ ] )"
 
 import filecmp
 import json
@@ -9,8 +9,6 @@ import subprocess
 import sys
 
 from collections.abc import Iterable
-
-import click
 
 denyFileList = [
     "node-packages.nix", # node, it will mark all node packages as broken
