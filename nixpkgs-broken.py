@@ -96,7 +96,7 @@ class Database:
         self.cursor.execute("""INSERT INTO build_results
             (id, url, jobset, eval_id, eval_timestamp, status, job, system)
             VALUES(?, ?, ?, ?, ?, ?, ?, ?)""",
-            (build_id, baseurl, jobset, last_eval_id, timestamp, status, jobname, system))
+            (build_id, baseurl, jobset, eval_id, timestamp, status, jobname, system))
         self.connection.commit()
 
     def get_known_builds(self, eval_id):
