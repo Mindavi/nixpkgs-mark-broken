@@ -119,6 +119,10 @@ class Database:
         res = self.cursor.execute("SELECT id, status, job, system, url, jobset FROM (SELECT id, status, job, system, url, jobset, max(eval_timestamp) over (partition by job, system) max_eval_timestamp FROM build_results WHERE status IS NOT NULL) WHERE status != 0 GROUP by job,system")
         return res.fetchall()
 
+    def get_estimated_last_working_build(self, jobname, system):
+        res = self.cursor.execute("SELECT id, status, max(eval_timestamp) FROM build_results WHERE status = 0 AND job = ? AND system = ?", (jobname, system))
+        return res.fetchone()
+
 class BuildFetcher(Process):
     def __init__(self, baseurl, work_queue, result_queue):
         super(BuildFetcher, self).__init__()
@@ -189,6 +193,12 @@ def list_broken_pkgs(database):
             continue
         if (jobname, system, status) in already_done_jobs:
             #print(f"Skip duplicate job {job}.{system}")
+            continue
+        lwb_id, lwb_status, lwb_timestamp = database.get_estimated_last_working_build(jobname, system)
+        if lwb_id != None:
+            #lwb_human_time = datetime.datetime.fromtimestamp(lwb_timestamp)
+            #print(f"last working build: {jobname}.{system}, status: {lwb_status}, timestamp: {lwb_human_time}, id: {lwb_id}")
+            previously_successful.append((id, status, jobname, system, lwb_timestamp, baseurl, jobset))
             continue
         already_done_jobs.append((jobname, system, status))
         url = f"{baseurl}/job/{jobset}/{jobname}.{system}/latest"
