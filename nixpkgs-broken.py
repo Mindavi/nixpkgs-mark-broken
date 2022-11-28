@@ -110,7 +110,7 @@ class Database:
 
     def get_broken_builds(self):
         # Select only latest builds (highest timestamp per job.system combination)
-        res = self.cursor.execute("SELECT id, status, job, system, url, jobset FROM (SELECT id, status, job, system, url, jobset, max(eval_timestamp) over (partition by job, system) max_eval_timestamp FROM build_results) WHERE status != 0 GROUP by job,system")
+        res = self.cursor.execute("SELECT id, status, job, system, url, jobset FROM (SELECT id, status, job, system, url, jobset, max(eval_timestamp) over (partition by job, system) max_eval_timestamp FROM build_results WHERE status IS NOT NULL) WHERE status != 0 GROUP by job,system")
         return res.fetchall()
 
 class BuildFetcher(Process):
