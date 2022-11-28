@@ -75,7 +75,7 @@ class Database:
         """)
         self.connection.commit()
 
-    def insert_build_result(
+    def insert_or_update_build_result(
         self,
         build_id,
         baseurl,
@@ -86,7 +86,13 @@ class Database:
         jobname,
         system
     ):
-        result = (build_id, baseurl, jobset, last_eval_id, timestamp, status, jobname, system)
+        if self.get_build_id(build_id) != None:
+            # Status is still none, no need to update DB row.
+            if status == None:
+                return
+            else:
+                self.update_build_status(build_id, status)
+                return
         self.cursor.execute("""INSERT INTO build_results
             (id, url, jobset, eval_id, eval_timestamp, status, job, system)
             VALUES(?, ?, ?, ?, ?, ?, ?, ?)""",
@@ -291,23 +297,15 @@ if __name__ == "__main__":
                 result_queue.put("The_End")
             continue
         build_id, baseurl, eval_id, timestamp, status, jobname, system = result
-        # TODO(ricsch): Handle builds that require an updated status.
-        if database.get_build_id(build_id) != None:
-            # Status is still none, no need to update DB row.
-            if status == None:
-                continue
-            else:
-                database.update_build_status(build_id, status)
-        else:
-            database.insert_build_result(
-                build_id,
-                baseurl,
-                jobset,
-                eval_id,
-                timestamp,
-                status,
-                jobname,
-                system)
+        database.insert_or_update_build_result(
+          build_id,
+          baseurl,
+          jobset,
+          eval_id,
+          timestamp,
+          status,
+          jobname,
+          system)
         number += 1
         print(f"{number}/{len(build_ids_to_check)}: status {status}, id {build_id}, job {jobname}, system {system}")
     work_queue.join()
