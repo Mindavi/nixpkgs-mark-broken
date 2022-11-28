@@ -203,7 +203,7 @@ def list_broken_pkgs(database):
     for [id, status, job, system, timestamp, baseurl, jobset] in previously_successful:
         overview_url = f"{baseurl}/job/{jobset}/{job}.{system}"
         human_time = datetime.datetime.fromtimestamp(timestamp)
-        print(f"build {id} was last successful at {human_time}: {job}.{system}, overview {overview_url}")
+        print(f"build {id} was last successful at {human_time} (status {status}): {job}.{system}, overview {overview_url}")
     never_built_ok.sort(key=lambda k: k[2])
     for [id, status, job, system, baseurl, jobset] in never_built_ok:
         overview_url = f"{baseurl}/job/{jobset}/{job}.{system}"
