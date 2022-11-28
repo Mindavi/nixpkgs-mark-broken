@@ -70,6 +70,11 @@ def attemptToMarkBroken(attr: str, platforms: Iterable[str], extraText = ""):
         #    continue
         alreadyMarked = subprocess.run([ "nix-instantiate", "--eval", "--json",
                                          "-E", f"with import ./. {{ localSystem = \"{platform}\"; }}; {attr}.meta.broken" ], capture_output=True)
+        if alreadyMarked.returncode != 0:
+            print(alreadyMarked)
+            failMark(attr, "Couldn't check meta.broken")
+            return
+
         isMarkedBrokenForPlatform = json.loads(alreadyMarked.stdout.decode('utf-8'))
         if isMarkedBrokenForPlatform:
             print(f"Package {attr} is already marked broken for {platform}")
