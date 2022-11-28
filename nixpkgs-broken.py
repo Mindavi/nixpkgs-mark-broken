@@ -217,7 +217,6 @@ def list_broken_pkgs(database):
 
         if counter % 100 == 0:
             print(f"Retrieved data for {counter}/{len(broken_builds)} packages")
-        # print(f'\t{overview_url}')
 
     previously_successful.sort(key=lambda k: k[4])
     for [id, status, jobname, system, timestamp, baseurl, jobset] in previously_successful:
