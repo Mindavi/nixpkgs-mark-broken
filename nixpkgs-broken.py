@@ -197,9 +197,24 @@ def list_broken_pkgs(database):
         if 'error' in res:
             never_built_ok.append((id, status, jobname, system, baseurl, jobset))
         else:
-            timestamp = res['timestamp']
-            human_time = datetime.datetime.fromtimestamp(timestamp)
-            previously_successful.append((id, status, jobname, system, timestamp, baseurl, jobset))
+            res_timestamp = res["timestamp"]
+            human_time = datetime.datetime.fromtimestamp(res_timestamp)
+            previously_successful.append((id, status, jobname, system, res_timestamp, baseurl, jobset))
+            # Insert into database
+            res_build_id = res["id"]
+            # Just grab the latest, it shouldn't matter too much for now.
+            res_eval_id = res["jobsetevals"][0]
+            res_status = res["buildstatus"]
+            database.insert_or_update_build_result(
+              res_build_id,
+              baseurl,
+              jobset,
+              res_eval_id,
+              res_timestamp,
+              res_status,
+              jobname,
+              system)
+
         if counter % 100 == 0:
             print(f"Retrieved data for {counter}/{len(broken_builds)} packages")
         # print(f'\t{overview_url}')
