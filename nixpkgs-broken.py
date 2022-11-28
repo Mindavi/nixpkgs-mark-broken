@@ -245,7 +245,7 @@ if __name__ == "__main__":
         description = 'Tool to identify and mark packages in nixpkgs as broken',
     )
     parser.add_argument('--baseurl', default='https://hydra.nixos.org', required=False)
-    parser.add_argument('--jobset', default='nixpkgs/trunk', required=False)
+    parser.add_argument('--jobset', default='nixpkgs/trunk', required=False, help="The jobset to use (e.g. nixpkgs/trunk, nixpkgs/nixpkgs-unstable-aarch64-darwin)")
     parser.add_argument('--use-cached', action='store_true')
     parser.add_argument('--list-broken-pkgs', action='store_true')
     parser.add_argument('--db-path', default='hydra.db', required=False)
