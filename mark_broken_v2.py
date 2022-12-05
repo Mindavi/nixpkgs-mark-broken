@@ -46,7 +46,7 @@ def numLeadingSpaces(input_str):
 
     return count
 
-def insertBrokenMark(file, brokenText, comment):
+def insertBrokenMark(attr, file, brokenText, comment):
     prev_line = None
     shutil.copyfile(file, f'{file}.bak', follow_symlinks=False)
     with open(file, "r") as input_file:
@@ -64,9 +64,12 @@ def insertBrokenMark(file, brokenText, comment):
         brokenline = 'broken =' in line
         if brokenline:
             # Assume this broken line terminates on the same line.
-            assert(';' in line)
+            if not ';' in line:
+                failMark(attr, "broken line unterminated on this line, cannot handle multiline broken marks")
+                return
             # It's not really nice to move the broken line if an explanation of the brokenness is provided above it.
-            assert('#' not in prev_line)
+            # TODO(Mindavi): detect if the next line is the meta closing line '};'. In that case this is ok.
+            #assert('#' not in prev_line)
             continue
         if meta_end:
             meta_end = False
@@ -179,7 +182,7 @@ def attemptToMarkBroken(attr: str, platforms: Iterable[str], extraText = ""):
       comment = f"  # {extraText}"
 
     # insert broken attribute
-    insertBrokenMark(nixFile, brokenText, comment)
+    insertBrokenMark(attr, nixFile, brokenText, comment)
 
     if filecmp.cmp(nixFile, f"{nixFile}.bak", shallow=False):
         shutil.move(f"{nixFile}.bak", nixFile)
