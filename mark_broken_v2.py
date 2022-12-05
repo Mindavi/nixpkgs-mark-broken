@@ -91,7 +91,9 @@ def insertBrokenMark(attr, file, brokenText, comment):
             output_lines.append(prev_line)
         elif meta_end:
             output_lines.append(prev_line)
-            output_lines.append(f"{' ' * meta_indent}broken = {brokenText};{comment}")
+            if comment:
+                output_lines.append(f"{' ' * meta_indent}# {comment}")
+            output_lines.append(f"{' ' * meta_indent}broken = {brokenText};")
         prev_line = line
     output_lines.append(prev_line)
 
@@ -184,12 +186,9 @@ def attemptToMarkBroken(attr: str, platforms: Iterable[str], extraText = ""):
 
     assert(brokenText != "")
     assert(not "#" in extraText and not "/" in extraText)
-    comment = ""
-    if extraText != "":
-      comment = f"  # {extraText}"
 
     # insert broken attribute
-    insertBrokenMark(attr, nixFile, brokenText, comment)
+    insertBrokenMark(attr, nixFile, brokenText, extraText)
 
     if filecmp.cmp(nixFile, f"{nixFile}.bak", shallow=False):
         shutil.move(f"{nixFile}.bak", nixFile)
