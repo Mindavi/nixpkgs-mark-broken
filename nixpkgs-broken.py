@@ -191,7 +191,7 @@ def list_broken_pkgs(database):
         counter += 1
         if status != 1:
             continue
-        if 'Packages.' in jobname or 'Packages_' in jobname or 'linuxKernel.' in jobname or 'linuxPackages_' in jobname:
+        if 'Packages.' in jobname or 'Packages_' in jobname or 'linuxKernel.' in jobname or 'linuxPackages_' in jobname or 'tests.' in jobname:
             continue
         if (jobname, system, status) in already_done_jobs:
             #print(f"Skip duplicate job {job}.{system}")
