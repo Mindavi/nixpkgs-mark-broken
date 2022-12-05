@@ -169,8 +169,6 @@ def attemptToMarkBroken(attr: str, platforms: Iterable[str], extraText = ""):
         if multiplePlatforms:
             brokenText += ")"
 
-    # TODO(mindavi): We could shorten (x86_64-x + aarch64-x) to stdenv.isX.
-
     if platforms == supportedPlatforms:
         brokenText = "true"
 
