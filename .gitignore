@@ -1,6 +1,8 @@
 # Exclude broken packages lists
 *.txt
+builds-*-*.json
 builds.json
+evals-*-*.json
 evals.json
 hydra.db
 
