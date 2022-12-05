@@ -58,8 +58,10 @@ def insertBrokenMark(attr, file, brokenText, comment):
 
     in_meta = False
     meta_end = False
-    for line in input_data.splitlines():
-        line = line.rstrip()
+    meta_end_marker = '};'
+    lines = input_data.splitlines()
+    for linenr in range(len(lines)):
+        line = lines[linenr].rstrip()
         # TODO(Mindavi): Decide if we want to replace the current line or move it to the bottom.
         brokenline = 'broken =' in line
         if brokenline:
@@ -68,14 +70,19 @@ def insertBrokenMark(attr, file, brokenText, comment):
                 failMark(attr, "broken line unterminated on this line, cannot handle multiline broken marks")
                 return
             # It's not really nice to move the broken line if an explanation of the brokenness is provided above it.
-            # TODO(Mindavi): detect if the next line is the meta closing line '};'. In that case this is ok.
-            #assert('#' not in prev_line)
+            # Detect if the next line is the meta closing line '};'. In that case this is ok.
+            next_line = lines[min(linenr+1, len(lines))]
+            prev_line_is_comment = '#' in prev_line
+            next_line_is_meta_end = meta_end_marker in next_line
+            if not next_line_is_meta_end and prev_line_is_comment:
+                failMark(attr, "broken line is preceded by comment, should be moved manually together with comment")
+                return
             continue
         if meta_end:
             meta_end = False
         if 'meta =' in line:
             in_meta = True
-        elif in_meta and '};' in line:
+        elif in_meta and meta_end_marker in line:
             meta_end = True
             in_meta = False
         elif in_meta:
