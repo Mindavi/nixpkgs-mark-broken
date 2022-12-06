@@ -141,9 +141,10 @@ def attemptToMarkBroken(attr: str, platforms: Iterable[str], extraText = ""):
         #    continue
         alreadyMarked = subprocess.run([ "nix-instantiate", "--eval", "--json",
                                          "-E", f"with import ./. {{ localSystem = \"{platform}\"; }}; {attr}.meta.broken" ], capture_output=True)
+        # assertion (stdenv).isLinux failed can sometimes occur when checking for Darwin.
+        # TODO(Mindavi): handle that situation better.
         if alreadyMarked.returncode != 0:
-            print(alreadyMarked)
-            failMark(attr, "Couldn't check meta.broken")
+            failMark(attr, "Couldn't check meta.broken: {alreadyMarked.stderr.decode('utf-8').split()[0]}")
             return
 
         isMarkedBrokenForPlatform = json.loads(alreadyMarked.stdout.decode('utf-8'))
@@ -200,7 +201,7 @@ def attemptToMarkBroken(attr: str, platforms: Iterable[str], extraText = ""):
         nixMarkedCheck = subprocess.run([ "nix-instantiate", "--eval", "--json", "-E", f"with import ./. {{ localSystem = \"{platform}\"; }}; {attr}.meta.broken" ], capture_output=True)
         if nixMarkedCheck.returncode != 0:
             shutil.move(f"{nixFile}.bak", nixFile)
-            failMark(attr, f"Failed to check {attr}.meta.broken for platform {platform}: {nixMarkedCheck.stderr.decode('utf-8')}")
+            failMark(attr, f"Failed to check {attr}.meta.broken for platform {platform}: {nixMarkedCheck.stderr.decode('utf-8').split()[0]}")
             return
         markedSuccessfully = json.loads(nixMarkedCheck.stdout.decode('utf-8'))
         if not markedSuccessfully:
