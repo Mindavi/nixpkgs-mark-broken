@@ -4,6 +4,7 @@
 import filecmp
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -60,14 +61,23 @@ def insertBrokenMark(attr, file, brokenText, comment):
     meta_end = False
     meta_end_marker = '};'
     lines = input_data.splitlines()
+    broken_counter = 0
     for linenr in range(len(lines)):
         line = lines[linenr].rstrip()
         # TODO(Mindavi): Decide if we want to replace the current line or move it to the bottom.
-        brokenline = 'broken =' in line
+        brokenline = re.search('broken\s+=', line)
         if brokenline:
+            broken_counter += 1
+            if broken_counter > 1:
+                failMark(attr, f"the file {file} contains multiple broken lines, unclear which to mark")
+                return
             # Assume this broken line terminates on the same line.
             if not ';' in line:
                 failMark(attr, "broken line unterminated on this line, cannot handle multiline broken marks")
+                return
+            # TODO(Mindavi): It should be easier to filter than doing it like this...
+            if 'Static' in line or 'targetPlatform' in line or 'is32bit' in line or 'kernel' in line or 'with' in line or 'version' in line or 'meta' in line or 'python' in line or 'Support' in line:
+                failMark(attr, "broken line contains special information, cannot handle anything other than a platform")
                 return
             # It's not really nice to move the broken line if an explanation of the brokenness is provided above it.
             # Detect if the next line is the meta closing line '};'. In that case this is ok.
