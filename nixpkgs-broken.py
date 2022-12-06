@@ -1,5 +1,5 @@
 #! /usr/bin/env nix-shell
-#! nix-shell -i python3 --pure -p "pkgs.python3.withPackages(ps: with ps; [ requests ])"
+#! nix-shell -i python3 --pure -p "pkgs.python3.withPackages(ps: with ps; [ requests ])" nix
 
 # consider using click to make the CLI
 # - update (updates the local database with the latest eval)
@@ -11,12 +11,14 @@
 
 #💡 the hydra endpoint /{project-id}/{jobset-id}/{job-id}/latest (as documented here: https://github.com/NixOS/hydra/issues/1036) will return the latest _working_ build for a job! This makes it very easy to see how long a job has been broken already.
 import argparse
+from collections import defaultdict
 import datetime
 import json
 from multiprocessing import JoinableQueue, Process, Queue
 import requests
 import sqlite3
 import sys
+import mark_broken_v2
 
 class EvalFetcher:
     def fetch(self, baseurl, jobset):
@@ -234,9 +236,14 @@ def list_broken_pkgs(database):
         human_time = datetime.datetime.fromtimestamp(timestamp)
         print(f"build {id} was last successful at {human_time} (status {status}): {jobname}.{system}, overview {overview_url}")
     never_built_ok.sort(key=lambda k: k[2])
+    #mark_broken_list = defaultdict(list)
     for [id, status, jobname, system, baseurl, jobset] in never_built_ok:
         overview_url = f"{baseurl}/job/{jobset}/{jobname}.{system}"
         print(f"build {id}: {jobname}.{system} was never successful, overview {overview_url}")
+    #    mark_broken_list[jobname].append(system)
+    #for [pkgname, platforms] in mark_broken_list.items():
+    #    platforms_text = ", ".join(platforms)
+    #    mark_broken_v2.attemptToMarkBroken(pkgname, platforms, extraText=f"never built on {platforms_text} since first introduction in nixpkgs")
 
 
 if __name__ == "__main__":
