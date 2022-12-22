@@ -6,6 +6,7 @@
 # - update --eval <eval_id> (updates the local database with a specific eval)
 # - update --use-cached (updates the local database with the latest cached eval)
 # - update --missing-status (update all rows in the local database that are missing a build status)
+#   - alternative name could be 'backfill'
 # - mark-broken <path/to/nixpkgs> (generates a list of broken attrs/packages and marks them broken)
 # - mark-broken --dry-run <path/to/nixpkgs> (generates a list of broken attrs/packages to be marked broken)
 
@@ -377,11 +378,12 @@ def list_broken_pkgs(database):
 def update_missing_statuses(database):
     builds_without_status = database.get_builds_without_status()
     print(f"There are {len(builds_without_status)} builds without status")
-    for build in builds_without_status:
+    for i in range(len(builds_without_status)):
+        build = builds_without_status[i]
         prev_build_id, prev_status, prev_job, prev_system, prev_url, prev_jobset = build
         new_build_info = get_build_result(prev_url, prev_build_id)
         build_id, baseurl, eval_id, timestamp, status, jobname, system = new_build_info
-        print(f"build id {build[0]}, name {jobname} status is now {status}")
+        print(f"{i+1}/{len(builds_without_status)}: build id {build_id}, status {status}, jobset {jobset}, name {jobname}")
         database.insert_or_update_build_result(
             build_id,
             baseurl,
