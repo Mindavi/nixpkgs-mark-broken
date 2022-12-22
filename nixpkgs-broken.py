@@ -145,6 +145,49 @@ class Database:
         res = self.cursor.execute("SELECT id, status, max(eval_timestamp) FROM build_results WHERE status = 0 AND job = ? AND system = ?", (jobname, system))
         return res.fetchone()
 
+def get_build_result(baseurl, build_id):
+    build_result = requests.get(f"{baseurl}/build/{build_id}", headers={"Accept": "application/json"})
+    try:
+        job = build_result.json()["job"]
+        status = build_result.json()["buildstatus"]
+        timestamp = build_result.json()["timestamp"]
+        build_system = build_result.json()["system"]
+        # Assumes ordering from high to low.
+        last_eval_id = build_result.json()["jobsetevals"][0]
+    except:
+        print(f"build {build_id} unknown status, {build_result}", file=sys.stderr)
+        return None
+    # status can be:
+    #   None: not built yet
+    #   0: success
+    #   1: Build returned a non-zero exit code
+    #   2: dependency failed
+    #   3: aborted
+    #   4: canceled by the user
+    #   6: failed with output
+    #   7: timed out
+    #   9: aborted
+    #   10: log size limit exceeded
+    #   11: output limit exceeded
+    if "." in job:
+        jobname, system = job.rsplit(".", maxsplit=1)
+        # Sanity check for system name.
+        known_system = system in ["aarch64-linux", "x86_64-linux", "x86_64-darwin", "aarch64-darwin"]
+        # e.g. stdenvBootstrapTools.x86_64-darwin.test, or stdenvBootstrapTools.x86_64-darwin.dist
+        # let's just skip em for now.
+        host_is_not_build = system != build_system
+        if not known_system:
+            print(f"Unknown system {system} in job {job} with id {build_id}, skipping")
+        elif host_is_not_build:
+            print(f"Host system {system} is not equal to build system {build_system}")
+        else:
+            # For now, make this a hard assumption. We can always relax later.
+            assert(system == build_system)
+            return (build_id, baseurl, last_eval_id, timestamp, status, jobname, system)
+    else:
+        print(f"Job without system (job: {job}, id: {build_id}, status: {status}), skipping")
+    return None
+
 class BuildFetcher(Process):
     def __init__(self, baseurl, work_queue, result_queue):
         super(BuildFetcher, self).__init__()
@@ -154,45 +197,10 @@ class BuildFetcher(Process):
 
     def run(self):
         for build_id in iter(self.work_queue.get, None):
-            build_result = requests.get(f"{self.baseurl}/build/{build_id}", headers={"Accept": "application/json"})
-            try:
-                job = build_result.json()["job"]
-                status = build_result.json()["buildstatus"]
-                timestamp = build_result.json()["timestamp"]
-                build_system = build_result.json()["system"]
-            except:
-                print(f"build {build_id} unknown status, {build_result}", file=sys.stderr)
-                self.work_queue.task_done()
-                return
-            # status can be:
-            #   None: not built yet
-            #   0: success
-            #   1: Build returned a non-zero exit code
-            #   2: dependency failed
-            #   3: aborted
-            #   4: canceled by the user
-            #   6: failed with output
-            #   7: timed out
-            #   9: aborted
-            #   10: log size limit exceeded
-            #   11: output limit exceeded
-            if "." in job:
-                jobname, system = job.rsplit(".", maxsplit=1)
-                # Sanity check for system name.
-                known_system = system in ["aarch64-linux", "x86_64-linux", "x86_64-darwin", "aarch64-darwin"]
-                # e.g. stdenvBootstrapTools.x86_64-darwin.test, or stdenvBootstrapTools.x86_64-darwin.dist
-                # let's just skip em for now.
-                host_is_not_build = system != build_system
-                if not known_system:
-                    print(f"Unknown system {system} in job {job} with id {build_id}, skipping")
-                elif host_is_not_build:
-                    print(f"Host system {system} is not equal to build system {build_system}")
-                else:
-                    # For now, make this a hard assumption. We can always relax later.
-                    assert(system == build_system)
-                    self.result_queue.put((build_id, baseurl, last_eval_id, timestamp, status, jobname, system))
-            else:
-                print(f"Job without system (job: {job}, id: {build_id}, status: {status}), skipping")
+            build_result = get_build_result(self.baseurl, build_id)
+            if build_result:
+                build_id, basurl, last_eval_id, timestamp, status, jobname, system = build_result
+                self.result_queue.put((build_id, baseurl, last_eval_id, timestamp, status, jobname, system))
             self.work_queue.task_done()
         self.result_queue.put(None)
         # Call task_done() for the 'None' item too.
