@@ -13,6 +13,7 @@
 import argparse
 from collections import defaultdict
 import datetime
+import hashlib
 import json
 from multiprocessing import JoinableQueue, Process, Queue
 import requests
@@ -26,7 +27,11 @@ class EvalFetcher:
         evals = requests.get(f"{baseurl}/jobset/{jobset}/evals", headers={"Accept": "application/json"})
         print("requesting evals took", datetime.datetime.now() - start)
 
-        with open(f"evals-{hash(baseurl)}-{hash(jobset)}.json", "w") as eval_file:
+        baseurl_hash = hashlib.sha1(baseurl.encode()).hexdigest()
+        jobset_hash = hashlib.sha1(jobset.encode()).hexdigest()
+        filename = f"evals-{baseurl_hash}-{jobset_hash}.json"
+        print(f"Create eval cache with filename {filename}")
+        with open(filename, "w") as eval_file:
             print(evals.text, file=eval_file)
 
         # TODO(ricsch): Handle errors
@@ -38,7 +43,11 @@ class EvalFetcher:
         return all_evals
 
     def get_cache(self):
-        with open(f"evals-{hash(baseurl)}-{hash(jobset)}.json", "w") as eval_file:
+        baseurl_hash = hashlib.sha1(baseurl.encode()).hexdigest()
+        jobset_hash = hashlib.sha1(jobset.encode()).hexdigest()
+        filename = f"evals-{baseurl_hash}-{jobset_hash}.json"
+        print(f"Loading cache from {filename}")
+        with open(filename, "r") as eval_file:
             return json.load(eval_file)["evals"]
 
 class BuildsInEvalFetcher:
@@ -50,13 +59,17 @@ class BuildsInEvalFetcher:
         all_builds_in_eval = builds.json()["builds"]
         print(f"number of builds: {len(all_builds_in_eval)}")
 
-        with open(f"builds-{hash(baseurl)}-{hash(jobset)}.json", "w") as build_file:
+        baseurl_hash = hashlib.sha1(baseurl.encode()).hexdigest()
+        jobset_hash = hashlib.sha1(jobset.encode()).hexdigest()
+        with open(f"builds-{baseurl_hash}-{jobset_hash}.json", "w") as build_file:
             print(builds.text, file=build_file)
 
         return all_builds_in_eval
 
     def get_cache(self):
-        with open(f"builds-{hash(baseurl)}-{hash(jobset)}.json", "w") as build_file:
+        baseurl_hash = hashlib.sha1(baseurl.encode()).hexdigest()
+        jobset_hash = hashlib.sha1(jobset.encode()).hexdigest()
+        with open(f"builds-{baseurl_hash}-{jobset_hash}.json", "r") as build_file:
             return json.load(build_file)["builds"]
 
 class Database:
