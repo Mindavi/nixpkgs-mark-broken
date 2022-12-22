@@ -135,6 +135,10 @@ class Database:
         res = self.cursor.execute("SELECT id, status, job, system, url, jobset FROM (SELECT id, status, job, system, url, jobset, max(eval_timestamp) over (partition by job, system) max_eval_timestamp FROM build_results WHERE status IS NOT NULL) WHERE status != 0 GROUP by job,system")
         return res.fetchall()
 
+    def get_builds_without_status(self):
+        res = self.cursor.execute("SELECT id, status, job, system, url, jobset FROM build_results WHERE status IS NULL")
+        return res.fetchall()
+
     def get_estimated_last_working_build(self, jobname, system):
         res = self.cursor.execute("SELECT id, status, max(eval_timestamp) FROM build_results WHERE status = 0 AND job = ? AND system = ?", (jobname, system))
         return res.fetchone()
