@@ -284,6 +284,7 @@ if __name__ == "__main__":
     parser.add_argument('--use-cached', action='store_true')
     parser.add_argument('--list-broken-pkgs', action='store_true')
     parser.add_argument('--db-path', default='hydra.db', required=False)
+    parser.add_argument('--update-missing-status', action='store_true')
 
     args = parser.parse_args()
     baseurl = args.baseurl
@@ -291,12 +292,21 @@ if __name__ == "__main__":
     use_cached = args.use_cached
     list_broken = args.list_broken_pkgs
     db_path = args.db_path
+    update_missing_status = args.update_missing_status
 
     print("Initializing database")
     database = Database(db_path)
 
     if list_broken:
         list_broken_pkgs(database)
+        sys.exit(0)
+    if update_missing_status:
+        builds_without_status = database.get_builds_without_status()
+        print(f"There are {len(builds_without_status)} builds without status")
+        for build in builds_without_status:
+            new_build_info = get_build_result(baseurl, build[0])
+            build_id, baseurl, last_eval_id, timestamp, status, jobname, system = new_build_info
+            print(f"build id {build[0]}, name {jobname} status is now {status}")
         sys.exit(0)
 
     print(f"listing packages with build status from {baseurl}, jobset {jobset}")
