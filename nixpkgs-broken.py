@@ -34,7 +34,7 @@ class EvalFetcher:
         with open(filename, "w") as eval_file:
             print(evals.text, file=eval_file)
 
-        # TODO(ricsch): Handle errors
+        # TODO(Mindavi): Handle errors
 
         all_evals = evals.json()["evals"]
 
@@ -54,7 +54,7 @@ class BuildsInEvalFetcher:
     def fetch(self, baseurl, eval_id):
         builds = requests.get(f"{baseurl}/eval/{last_eval_id}", headers={"Accept": "application/json"})
 
-        # TODO(ricsch): Handle errors
+        # TODO(Mindavi): Handle errors
 
         all_builds_in_eval = builds.json()["builds"]
         print(f"number of builds: {len(all_builds_in_eval)}")
@@ -131,6 +131,7 @@ class Database:
 
     def get_broken_builds(self):
         # Select only latest builds (highest timestamp per job.system combination)
+        # TODO(Mindavi): only use the latest eval(s) per jobset, because packages might be marked broken or removed
         res = self.cursor.execute("SELECT id, status, job, system, url, jobset FROM (SELECT id, status, job, system, url, jobset, max(eval_timestamp) over (partition by job, system) max_eval_timestamp FROM build_results WHERE status IS NOT NULL) WHERE status != 0 GROUP by job,system")
         return res.fetchall()
 
