@@ -374,6 +374,23 @@ def list_broken_pkgs(database):
     #    platforms_text = ", ".join(platforms)
     #    mark_broken_v2.attemptToMarkBroken(pkgname, platforms, extraText=f"never built on {platforms_text} since first introduction in nixpkgs")
 
+def update_missing_statuses(database):
+    builds_without_status = database.get_builds_without_status()
+    print(f"There are {len(builds_without_status)} builds without status")
+    for build in builds_without_status:
+        prev_build_id, prev_status, prev_job, prev_system, prev_url, prev_jobset = build
+        new_build_info = get_build_result(prev_url, prev_build_id)
+        build_id, baseurl, eval_id, timestamp, status, jobname, system = new_build_info
+        print(f"build id {build[0]}, name {jobname} status is now {status}")
+        database.insert_or_update_build_result(
+            build_id,
+            baseurl,
+            prev_jobset,
+            eval_id,
+            timestamp,
+            status,
+            jobname,
+            system)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -407,12 +424,7 @@ if __name__ == "__main__":
         list_package_paths(database)
         sys.exit(0)
     if update_missing_status:
-        builds_without_status = database.get_builds_without_status()
-        print(f"There are {len(builds_without_status)} builds without status")
-        for build in builds_without_status:
-            new_build_info = get_build_result(baseurl, build[0])
-            build_id, baseurl, last_eval_id, timestamp, status, jobname, system = new_build_info
-            print(f"build id {build[0]}, name {jobname} status is now {status}")
+        update_missing_statuses(database)
         sys.exit(0)
 
     print(f"listing packages with build status from {baseurl}, jobset {jobset}")
