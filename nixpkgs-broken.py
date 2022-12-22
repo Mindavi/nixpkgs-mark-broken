@@ -92,6 +92,14 @@ class Database:
         """)
         self.connection.commit()
 
+        self.cursor.execute("""CREATE TABLE IF NOT EXISTS attr_files(
+        id              INTEGER PRIMARY KEY NOT NULL,
+        attribute       TEXT                NOT NULL,
+        file            TEXT                NOT NULL
+        );
+        """)
+        self.connection.commit()
+
     def insert_or_update_build_result(
         self,
         build_id,
@@ -116,6 +124,20 @@ class Database:
             (build_id, baseurl, jobset, eval_id, timestamp, status, jobname, system))
         self.connection.commit()
 
+    def insert_or_update_attr_file(
+        self,
+        attribute,
+        file
+    ):
+        if self.get_attr_file(attribute) != None:
+            self.update_attr_file(attribute, file)
+            return
+        self.cursor.execute("""INSERT INTO attr_files
+            (attribute, file)
+            VALUES(?, ?)""",
+            (attribute, file,))
+        self.connection.commit()
+
     def get_known_builds(self, eval_id):
         known_builds = self.cursor.execute("SELECT id, status FROM build_results WHERE eval_id = ?", (eval_id,))
         found_builds = []
@@ -127,8 +149,16 @@ class Database:
         res = self.cursor.execute("SELECT id, status FROM build_results WHERE id = ?", (build_id,))
         return res.fetchone()
 
+    def get_attr_file(self, attribute):
+        res = self.cursor.execute("SELECT file FROM attr_files WHERE attribute = ?", (attribute,))
+        return res.fetchone()
+
     def update_build_status(self, build_id, new_status):
         self.cursor.execute("UPDATE build_results SET status = ? WHERE id = ?", (new_status, build_id))
+        self.connection.commit()
+
+    def update_attr_file(self, attribute, file):
+        self.cursor.execute("UPDATE attr_files SET file = ? WHERE attribute = ?", (file, attribute,))
         self.connection.commit()
 
     def get_broken_builds(self):
@@ -144,6 +174,10 @@ class Database:
     def get_estimated_last_working_build(self, jobname, system):
         res = self.cursor.execute("SELECT id, status, max(eval_timestamp) FROM build_results WHERE status = 0 AND job = ? AND system = ?", (jobname, system))
         return res.fetchone()
+
+    def get_all_last_completed_builds(self):
+        res = self.cursor.execute("SELECT id, status, job, system, url, jobset FROM (SELECT id, status, job, system, url, jobset, max(eval_timestamp) over (partition by job, system) max_eval_timestamp FROM build_results WHERE status IS NOT NULL) GROUP by job,system")
+        return res.fetchall()
 
 def get_build_result(baseurl, build_id):
     build_result = requests.get(f"{baseurl}/build/{build_id}", headers={"Accept": "application/json"})
@@ -205,6 +239,73 @@ class BuildFetcher(Process):
         self.result_queue.put(None)
         # Call task_done() for the 'None' item too.
         self.work_queue.task_done()
+
+problematicAttrsListPaths = [
+    'darwin.',
+    'docbook_sgml',
+    'docbook_xml',
+    'dwarf-fortress-packages.',
+    'Packages.',
+    'Packages_',
+    'Plugins.',
+    'libsForQt5',
+    'matrix-synapse-plugins.',
+    'pythonDocs',
+    'qt5.',
+    'qt512.',
+    'qt514.',
+    'qt515.',
+    'terraform-providers.',
+    'tests.',
+    'tree-sitter-grammars.',
+    'unixtools.',
+    'vscode-extensions.',
+    'xfce.',
+    'xorg.',
+]
+
+def list_package_paths(database):
+    paths_with_attrs = defaultdict(set)
+    res = database.get_all_last_completed_builds()
+    assert(len(res) > 0)
+    counter = 0
+    done = set()
+    for [id, status, jobname, system, url, jobset] in res:
+        counter += 1
+        if counter % 500 == 0 and counter != 0:
+            print(f"Processing... {counter}/{len(res)}")
+        if jobname in done:
+            continue
+        done.add(jobname)
+        # Skip some problematic packages / package sets.
+        skip = False
+        for problematicAttr in problematicAttrsListPaths:
+            if problematicAttr in jobname:
+                skip = True
+                break
+        if skip:
+            continue
+
+        # NOTE(Mindavi): assume the same file will be returned for all systems.
+        file = database.get_attr_file(jobname)
+        if not file:
+            nixInstantiate = subprocess.run([ "nix-instantiate", "--eval", "--json", "-E", f"with import ./. {{}}; (builtins.unsafeGetAttrPos \"description\" {jobname}.meta).file" ], capture_output=True)
+            if nixInstantiate.returncode != 0:
+                print(f"error during nix-instantiate for attr {jobname}:", nixInstantiate.stderr.decode('utf-8').splitlines()[0])
+                continue
+            # TODO(Mindavi): normalize to a path relative to the nixpkgs root directory
+            nixFile = json.loads(nixInstantiate.stdout.decode('utf-8'))
+            # Make relative to CWD (which is assumed to be nixpkgs).
+            nixFile = os.path.relpath(nixFile)
+            database.insert_or_update_attr_file(jobname, nixFile)
+        else:
+            nixFile = file[0]
+        paths_with_attrs[nixFile].add(jobname)
+    for [path, jobs] in paths_with_attrs.items():
+        if not isinstance(path, str):
+            print("path is not str: {path}")
+        if len(jobs) > 1:
+            print(f"{path}: {', '.join(jobs)}")
 
 def list_broken_pkgs(database):
     print("Listing broken pkgs")
@@ -284,6 +385,7 @@ if __name__ == "__main__":
     parser.add_argument('--use-cached', action='store_true')
     parser.add_argument('--list-broken-pkgs', action='store_true')
     parser.add_argument('--db-path', default='hydra.db', required=False)
+    parser.add_argument('--list-pkg-paths', action='store_true')
     parser.add_argument('--update-missing-status', action='store_true')
 
     args = parser.parse_args()
@@ -292,6 +394,7 @@ if __name__ == "__main__":
     use_cached = args.use_cached
     list_broken = args.list_broken_pkgs
     db_path = args.db_path
+    list_pkg_paths = args.list_pkg_paths
     update_missing_status = args.update_missing_status
 
     print("Initializing database")
@@ -299,6 +402,9 @@ if __name__ == "__main__":
 
     if list_broken:
         list_broken_pkgs(database)
+        sys.exit(0)
+    if list_pkg_paths:
+        list_package_paths(database)
         sys.exit(0)
     if update_missing_status:
         builds_without_status = database.get_builds_without_status()
