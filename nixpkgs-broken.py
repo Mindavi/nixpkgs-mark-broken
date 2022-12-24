@@ -7,6 +7,7 @@
 # - update --use-cached (updates the local database with the latest cached eval)
 # - update --missing-status (update all rows in the local database that are missing a build status)
 #   - alternative name could be 'backfill'
+# - update --recheck-broken-status (re-check all builds that have a non-zero status and see if the status has been updated, e.g. due to a rebuild)
 # - mark-broken <path/to/nixpkgs> (generates a list of broken attrs/packages and marks them broken)
 # - mark-broken --dry-run <path/to/nixpkgs> (generates a list of broken attrs/packages to be marked broken)
 
