@@ -165,7 +165,8 @@ class Database:
     def get_broken_builds(self):
         # Select only latest builds (highest timestamp per job.system combination)
         # TODO(Mindavi): only use the latest eval(s) per jobset, because packages might be marked broken or removed
-        res = self.cursor.execute("SELECT id, status, job, system, url, jobset FROM (SELECT id, status, job, system, url, jobset, max(eval_timestamp) over (partition by job, system) max_eval_timestamp FROM build_results WHERE status IS NOT NULL) WHERE status != 0 GROUP by job,system")
+        res = self.cursor.execute(
+            "SELECT * FROM (SELECT id, url, jobset, eval_id, max(eval_timestamp), status, job, system FROM build_results WHERE status IS NOT NULL GROUP BY job, system) WHERE status != 0")
         return res.fetchall()
 
     def get_builds_without_status(self):
@@ -315,9 +316,10 @@ def list_broken_pkgs(database):
     never_built_ok = []
     previously_successful = []
     print(f"There are {len(broken_builds)} builds to consider")
-    broken_builds.sort(key=lambda k:k[2])
+    # id, url, jobset, eval_id, max(eval_timestamp), status, job, system
+    broken_builds.sort(key=lambda k:k[6])
     counter = 0
-    for [id, status, jobname, system, baseurl, jobset] in broken_builds:
+    for [id, baseurl, jobset, eval_id, eval_timestamp, status, jobname, system] in broken_builds:
         if counter % 100 == 0 and counter != 0:
             print(f"Checked {counter}/{len(broken_builds)} packages")
         counter += 1
