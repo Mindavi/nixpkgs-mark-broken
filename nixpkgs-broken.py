@@ -169,7 +169,7 @@ class Database:
         return res.fetchall()
 
     def get_builds_without_status(self):
-        res = self.cursor.execute("SELECT id, status, job, system, url, jobset FROM build_results WHERE status IS NULL")
+        res = self.cursor.execute("SELECT id, status, job, system, url, jobset, eval_id FROM build_results WHERE status IS NULL")
         return res.fetchall()
 
     def get_estimated_last_working_build(self, jobname, system):
@@ -380,10 +380,10 @@ def update_missing_statuses(database):
     print(f"There are {len(builds_without_status)} builds without status")
     for i in range(len(builds_without_status)):
         build = builds_without_status[i]
-        prev_build_id, prev_status, prev_job, prev_system, prev_url, prev_jobset = build
+        prev_build_id, prev_status, prev_jobname, prev_system, prev_url, prev_jobset, prev_eval_id = build
         new_build_info = get_build_result(prev_url, prev_build_id)
         build_id, baseurl, eval_id, timestamp, status, jobname, system = new_build_info
-        print(f"{i+1}/{len(builds_without_status)}: build id {build_id}, status {status}, jobset {jobset}, name {jobname}")
+        print(f"{i+1}/{len(builds_without_status)}: build id {prev_build_id}, status {status}, jobset {prev_jobset}, name {prev_jobname}")
         database.insert_or_update_build_result(
             build_id,
             baseurl,
