@@ -14,10 +14,11 @@
 #💡 the hydra endpoint /{project-id}/{jobset-id}/{job-id}/latest (as documented here: https://github.com/NixOS/hydra/issues/1036) will return the latest _working_ build for a job! This makes it very easy to see how long a job has been broken already.
 import argparse
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 import datetime
+from functools import partial
 import hashlib
 import json
-from multiprocessing import JoinableQueue, Process, Queue
 import os
 import requests
 import sqlite3
@@ -224,24 +225,6 @@ def get_build_result(baseurl, build_id):
     else:
         print(f"Job without system (job: {job}, id: {build_id}, status: {status}), skipping")
     return None
-
-class BuildFetcher(Process):
-    def __init__(self, baseurl, work_queue, result_queue):
-        super(BuildFetcher, self).__init__()
-        self.baseurl = baseurl
-        self.work_queue = work_queue
-        self.result_queue = result_queue
-
-    def run(self):
-        for build_id in iter(self.work_queue.get, None):
-            build_result = get_build_result(self.baseurl, build_id)
-            if build_result:
-                build_id, basurl, last_eval_id, timestamp, status, jobname, system = build_result
-                self.result_queue.put((build_id, baseurl, last_eval_id, timestamp, status, jobname, system))
-            self.work_queue.task_done()
-        self.result_queue.put(None)
-        # Call task_done() for the 'None' item too.
-        self.work_queue.task_done()
 
 problematicAttrsListPaths = [
     'darwin.',
@@ -471,37 +454,26 @@ if __name__ == "__main__":
     start_retrieve_build_results = datetime.datetime.now()
 
     num_processes = 100
-    work_queue = JoinableQueue()
-    result_queue = Queue()
-    for i in range(num_processes):
-        BuildFetcher(baseurl, work_queue, result_queue).start()
-    for id in build_ids_to_check:
-        work_queue.put(id)
-    for i in range(num_processes):
-        work_queue.put(None)
 
-    number = 0
-    none_counter = 0
-    for result in iter(result_queue.get, "The_End"):
-        if result == None:
-            none_counter += 1
-            # print(f"A worker exited, {num_processes - none_counter} left")
-            if none_counter == num_processes:
-                result_queue.put("The_End")
-            continue
-        build_id, baseurl, eval_id, timestamp, status, jobname, system = result
-        database.insert_or_update_build_result(
-          build_id,
-          baseurl,
-          jobset,
-          eval_id,
-          timestamp,
-          status,
-          jobname,
-          system)
-        number += 1
-        print(f"{number}/{len(build_ids_to_check)}: status {status}, id {build_id}, job {jobname}, system {system}")
-    work_queue.join()
+    get_build_result_for_url = partial(get_build_result, baseurl)
+    with ThreadPoolExecutor(max_workers=num_processes) as pool:
+        results = list(pool.map(get_build_result_for_url, build_ids_to_check))
+        number = 0
+        for result in results:
+            if result == None:
+                continue
+            build_id, baseurl, eval_id, timestamp, status, jobname, system = result
+            database.insert_or_update_build_result(
+                build_id,
+                baseurl,
+                jobset,
+                eval_id,
+                timestamp,
+                status,
+                jobname,
+                system)
+            number += 1
+            print(f"{number}/{len(build_ids_to_check)}: status {status}, id {build_id}, job {jobname}, system {system}")
 
     print("retrieving build results took", datetime.datetime.now() - start_retrieve_build_results)
 
