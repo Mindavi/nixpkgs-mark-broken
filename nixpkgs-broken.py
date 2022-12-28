@@ -15,6 +15,7 @@
 import argparse
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
+import concurrent.futures
 import datetime
 from functools import partial
 import hashlib
@@ -457,9 +458,10 @@ if __name__ == "__main__":
 
     get_build_result_for_url = partial(get_build_result, baseurl)
     with ThreadPoolExecutor(max_workers=num_processes) as pool:
-        results = list(pool.map(get_build_result_for_url, build_ids_to_check))
+        futures = {pool.submit(get_build_result_for_url, build_id): build_id for build_id in build_ids_to_check}
         number = 0
-        for result in results:
+        for future in concurrent.futures.as_completed(futures):
+            result = future.result()
             if result == None:
                 continue
             build_id, baseurl, eval_id, timestamp, status, jobname, system = result
