@@ -312,6 +312,13 @@ def list_broken_pkgs(database):
             continue
         if 'Packages.' in jobname or 'Packages_' in jobname or 'linuxKernel.' in jobname or 'linuxPackages_' in jobname or 'tests.' in jobname:
             continue
+        # FIXME(Mindavi): Prevent this from being an issue.
+        # See:
+        # - https://github.com/NixOS/nixpkgs/pull/206348
+        # - https://github.com/NixOS/nixpkgs/pull/203997#issuecomment-1352674741
+        if 'subunit' in jobname:
+            print(f"Skipping subunit package with jobname {jobname} and build id {id}")
+            continue
         if (jobname, system, status) in already_done_jobs:
             #print(f"Skip duplicate job {job}.{system}")
             continue
