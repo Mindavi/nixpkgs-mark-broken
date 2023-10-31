@@ -185,7 +185,7 @@ class Database:
         return res.fetchall()
 
 def get_build_result(baseurl, build_id):
-    build_result = requests.get(f"{baseurl}/build/{build_id}", headers={"Accept": "application/json"})
+    build_result = requests.get(f"{baseurl}/build/{build_id}", headers={"Accept": "application/json"}, timeout=(10, 30))
     try:
         job = build_result.json()["job"]
         status = build_result.json()["buildstatus"]
