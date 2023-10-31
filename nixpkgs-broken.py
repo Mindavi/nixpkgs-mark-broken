@@ -482,7 +482,8 @@ if __name__ == "__main__":
                 jobname,
                 system)
             number += 1
-            print(f"{number}/{len(build_ids_to_check)}: status {status}, id {build_id}, job {jobname}, system {system}")
+            runtime = datetime.datetime.now() - start_retrieve_build_results
+            print(f"({runtime}) {number}/{len(build_ids_to_check)}: status {status}, id {build_id}, job {jobname}, system {system}")
 
     print("retrieving build results took", datetime.datetime.now() - start_retrieve_build_results)
 
