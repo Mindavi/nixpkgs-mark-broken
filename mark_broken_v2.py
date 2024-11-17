@@ -25,17 +25,17 @@ denyAttrList = [
 ]
 
 platformsAndBrokenText = {
-    "aarch64-linux": "stdenv.isLinux && stdenv.isAarch64",
-    "x86_64-linux": "stdenv.isLinux && stdenv.isx86_64",
-    "aarch64-darwin": "stdenv.isDarwin && stdenv.isAarch64",
-    "x86_64-darwin": "stdenv.isDarwin && stdenv.isx86_64",
+    "aarch64-linux": "stdenv.hostPlatform.isLinux && stdenv.hostPlatform.isAarch64",
+    "x86_64-linux": "stdenv.hostPlatform.isLinux && stdenv.hostPlatform.isx86_64",
+    "aarch64-darwin": "stdenv.hostPlatform.isDarwin && stdenv.hostPlatform.isAarch64",
+    "x86_64-darwin": "stdenv.hostPlatform.isDarwin && stdenv.hostPlatform.isx86_64",
 }
 
 supportedPlatforms = list(platformsAndBrokenText.keys())
 
 shortPlatforms = {
-    "stdenv.isLinux": [ "x86_64-linux", "aarch64-linux" ],
-    "stdenv.isDarwin": [ "x86_64-darwin", "aarch64-darwin" ],
+    "stdenv.hostPlatform.isLinux": [ "x86_64-linux", "aarch64-linux" ],
+    "stdenv.hostPlatform.isDarwin": [ "x86_64-darwin", "aarch64-darwin" ],
 }
 
 def numLeadingSpaces(input_str):
@@ -151,7 +151,7 @@ def attemptToMarkBroken(attr: str, platforms: Iterable[str], extraText = ""):
         #    continue
         alreadyMarked = subprocess.run([ "nix-instantiate", "--eval", "--json",
                                          "-E", f"with import ./. {{ localSystem = \"{platform}\"; }}; {attr}.meta.broken" ], capture_output=True)
-        # assertion (stdenv).isLinux failed can sometimes occur when checking for Darwin.
+        # assertion (stdenv).hostPlatform.isLinux failed can sometimes occur when checking for Darwin.
         # TODO(Mindavi): handle that situation better.
         if alreadyMarked.returncode != 0:
             failMark(attr, "Couldn't check meta.broken: {alreadyMarked.stderr.decode('utf-8').split()[0]}")
