@@ -65,7 +65,7 @@ def insertBrokenMark(attr, file, brokenText, comment):
     for linenr in range(len(lines)):
         line = lines[linenr].rstrip()
         # TODO(Mindavi): Decide if we want to replace the current line or move it to the bottom.
-        brokenline = re.search('broken\s+=', line)
+        brokenline = re.search(r'broken\s+=', line)
         if brokenline:
             broken_counter += 1
             if broken_counter > 1:
