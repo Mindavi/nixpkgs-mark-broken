@@ -30,7 +30,7 @@ import mark_broken_v2
 class EvalFetcher:
     def fetch(self, baseurl, jobset):
         start = datetime.datetime.now()
-        evals = requests.get(f"{baseurl}/jobset/{jobset}/evals", headers={"Accept": "application/json"})
+        evals = requests.get(f"{baseurl}/jobset/{jobset}/evals", headers={"Accept": "application/json", "Connection": "close"})
         print("requesting evals took", datetime.datetime.now() - start)
 
         baseurl_hash = hashlib.sha1(baseurl.encode()).hexdigest()[:8]
@@ -461,7 +461,7 @@ if __name__ == "__main__":
 
     start_retrieve_build_results = datetime.datetime.now()
 
-    num_processes = 100
+    num_processes = 10
 
     get_build_result_for_url = partial(get_build_result, baseurl)
     with ThreadPoolExecutor(max_workers=num_processes) as pool:
