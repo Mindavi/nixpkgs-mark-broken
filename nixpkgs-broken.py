@@ -251,7 +251,9 @@ problematicAttrsListPaths = [
     'xorg.',
 ]
 
-def list_package_paths(database):
+def list_package_paths(database, nixpkgs_path):
+    """List all packages that have multiple attribute names."""
+    # TODO(Mindavi): what was this needed for? To filter duplicate attributes?
     paths_with_attrs = defaultdict(set)
     res = database.get_all_last_completed_builds()
     assert(len(res) > 0)
@@ -276,7 +278,7 @@ def list_package_paths(database):
         # NOTE(Mindavi): assume the same file will be returned for all systems.
         file = database.get_attr_file(jobname)
         if not file:
-            nixInstantiate = subprocess.run([ "nix-instantiate", "--eval", "--json", "-E", f"with import ./. {{}}; (builtins.unsafeGetAttrPos \"description\" {jobname}.meta).file" ], capture_output=True)
+            nixInstantiate = subprocess.run([ "nix-instantiate", "--eval", "--json", "-E", f"with import {nixpkgs_path} {{}}; (builtins.unsafeGetAttrPos \"description\" {jobname}.meta).file" ], capture_output=True)
             if nixInstantiate.returncode != 0:
                 print(f"error during nix-instantiate for attr {jobname}:", nixInstantiate.stderr.decode('utf-8').splitlines()[0])
                 continue
@@ -400,6 +402,7 @@ if __name__ == "__main__":
     parser.add_argument('--db-path', default='hydra.db', required=False)
     parser.add_argument('--list-pkg-paths', action='store_true')
     parser.add_argument('--update-missing-status', action='store_true')
+    parser.add_argument('--nixpkgs-path', type=str)
 
     args = parser.parse_args()
     baseurl = args.baseurl
@@ -409,6 +412,7 @@ if __name__ == "__main__":
     db_path = args.db_path
     list_pkg_paths = args.list_pkg_paths
     update_missing_status = args.update_missing_status
+    nixpkgs = args.nixpkgs_path
 
     print("Initializing database")
     database = Database(db_path)
@@ -417,7 +421,7 @@ if __name__ == "__main__":
         list_broken_pkgs(database)
         sys.exit(0)
     if list_pkg_paths:
-        list_package_paths(database)
+        list_package_paths(database, nixpkgs)
         sys.exit(0)
     if update_missing_status:
         update_missing_statuses(database)
