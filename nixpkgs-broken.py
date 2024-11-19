@@ -142,6 +142,14 @@ class Database:
             (attribute, file,))
         self.connection.commit()
 
+    def remove_attr_file(self, attribute):
+        if self.get_attr_file(attribute) == None:
+            # Not present?
+            return
+        self.cursor.execute("""DELETE FROM attr_files
+            WHERE attribute = ?""", (attribute,))
+        self.connection.commit()
+
     def get_known_builds(self, eval_id):
         known_builds = self.cursor.execute("SELECT id, status FROM build_results WHERE eval_id = ?", (eval_id,))
         found_builds = []
@@ -277,18 +285,29 @@ def list_package_paths(database, nixpkgs_path):
 
         # NOTE(Mindavi): assume the same file will be returned for all systems.
         file = database.get_attr_file(jobname)
+        if file:
+            nixFile = file[0]
+            if not os.path.exists(nixFile):
+                print(f"fallback for {jobname}: {nixFile} does not exist anymore")
+                # This entry is stale, so remove it.
+                database.remove_attr_file(jobname)
+                file = None
         if not file:
             nixInstantiate = subprocess.run([ "nix-instantiate", "--eval", "--json", "-E", f"with import {nixpkgs_path} {{}}; (builtins.unsafeGetAttrPos \"description\" {jobname}.meta).file" ], capture_output=True)
             if nixInstantiate.returncode != 0:
-                print(f"error during nix-instantiate for attr {jobname}:", nixInstantiate.stderr.decode('utf-8').splitlines()[0])
+                errorMessage = nixInstantiate.stderr.decode('utf-8')
+                errorLine = ", ".join(list(map(lambda y: y.strip(), filter(lambda x: "error: " in x, errorMessage.splitlines()))))
+                # TODO(Mindavi): Do something with the error message, e.g. these are somewhat actionable:
+                # - error: attribute 'volume-scroller' missing (in case it was an attribute of a package set)
+                # - error: undefined variable 'graalvm11-ce' (in case it was a top-level attribute)
+                # - error: expected a set but found null: null (not sure when this happens?)
+                print(f"error during nix-instantiate for attr {jobname}:", errorLine)
                 continue
             # TODO(Mindavi): normalize to a path relative to the nixpkgs root directory
             nixFile = json.loads(nixInstantiate.stdout.decode('utf-8'))
             # Make relative to CWD (which is assumed to be nixpkgs).
             nixFile = os.path.relpath(nixFile)
             database.insert_or_update_attr_file(jobname, nixFile)
-        else:
-            nixFile = file[0]
         paths_with_attrs[nixFile].add(jobname)
     for [path, jobs] in paths_with_attrs.items():
         if not isinstance(path, str):
