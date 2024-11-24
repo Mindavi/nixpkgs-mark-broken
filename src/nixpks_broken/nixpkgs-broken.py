@@ -426,7 +426,7 @@ def update_missing_statuses(database):
             jobname,
             system)
 
-if __name__ == "__main__":
+def cli():
     parser = argparse.ArgumentParser(
         prog = 'nixpkgs-broken',
         description = 'Tool to identify and mark packages in nixpkgs as broken',
@@ -526,4 +526,7 @@ if __name__ == "__main__":
             print(f"({runtime}) {number}/{len(build_ids_to_check)}: status {status}, id {build_id}, job {jobname}, system {system}")
 
     print("retrieving build results took", datetime.datetime.now() - start_retrieve_build_results)
+
+if __name__ == "__main__":
+    cli()
 

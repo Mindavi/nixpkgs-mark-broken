@@ -7,7 +7,7 @@ authors = [
 ]
 # readme = "README.md"
 # license = "BSD"
-requires-python = "^3.10"
+requires-python = ">=3.10"
 dependencies = [
   "requests"
 ]
@@ -17,5 +17,4 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project.scripts]
-nixpkgs-mark-broken = "nixpkgs-broken"
-
+nixpkgs-mark-broken = "nixpkgs_broken.nixpkgs-broken:cli"
