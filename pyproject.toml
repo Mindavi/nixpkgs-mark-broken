@@ -17,4 +17,4 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project.scripts]
-nixpkgs-mark-broken = "nixpkgs_broken.nixpkgs-broken:cli"
+broken = "nixpkgs_broken.broken:cli"
