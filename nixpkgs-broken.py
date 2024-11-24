@@ -82,22 +82,32 @@ class Database:
     def __init__(self, path):
         self.connection = sqlite3.connect(path)
         self.cursor = self.connection.cursor()
+        self.cursor.execute("""PRAGMA foreign_keys = ON;""")
+        self.connection.commit()
+
+        self.cursor.execute("""CREATE TABLE IF NOT EXISTS jobsets(
+        jobset_id       INTEGER PRIMARY KEY NOT NULL,
+        url             TEXT                NOT NULL,
+        jobset          TEXT                NOT NULL
+        );
+        """)
+        self.connection.commit()
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS build_results(
-        id              INT PRIMARY KEY NOT NULL,
-        url             TEXT            NOT NULL,
-        jobset          TEXT            NOT NULL,
-        eval_id         INT             NOT NULL,
-        eval_timestamp  INT             NOT NULL,
-        status          INT,
+        build_id        INTEGER PRIMARY KEY NOT NULL,
+        jobset_id       INTEGER,
+        eval_id         INTEGER             NOT NULL,
+        eval_timestamp  INTEGER             NOT NULL,
+        status          INTEGER,
         job             TEXT            NOT NULL,
-        system          TEXT            NOT NULL
+        system          TEXT            NOT NULL,
+        FOREIGN KEY(jobset_id) REFERENCES jobsets(jobset_id)
         );
         """)
         self.connection.commit()
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS attr_files(
-        id              INTEGER PRIMARY KEY NOT NULL,
+        attr_files_id   INTEGER PRIMARY KEY NOT NULL,
         attribute       TEXT                NOT NULL,
         file            TEXT                NOT NULL
         );
@@ -115,6 +125,9 @@ class Database:
         jobname,
         system
     ):
+        self.cursor.execute("""INSERT OR IGNORE INTO jobsets (jobset_id, url, jobset) VALUES(NULL, ?, ?)""", (baseurl, jobset))
+        jobset_id = self.get_jobset_id(baseurl, jobset)
+        self.connection.commit()
         if self.get_build_id(build_id) != None:
             # Status is still none, no need to update DB row.
             if status == None:
@@ -123,9 +136,9 @@ class Database:
                 self.update_build_status(build_id, status)
                 return
         self.cursor.execute("""INSERT INTO build_results
-            (id, url, jobset, eval_id, eval_timestamp, status, job, system)
-            VALUES(?, ?, ?, ?, ?, ?, ?, ?)""",
-            (build_id, baseurl, jobset, eval_id, timestamp, status, jobname, system))
+            (build_id, jobset_id, eval_id, eval_timestamp, status, job, system)
+            VALUES(?, ?, ?, ?, ?, ?, ?)""",
+            (build_id, jobset_id, eval_id, timestamp, status, jobname, system))
         self.connection.commit()
 
     def insert_or_update_attr_file(
@@ -151,22 +164,26 @@ class Database:
         self.connection.commit()
 
     def get_known_builds(self, eval_id):
-        known_builds = self.cursor.execute("SELECT id, status FROM build_results WHERE eval_id = ?", (eval_id,))
+        known_builds = self.cursor.execute("SELECT build_id, status FROM build_results WHERE eval_id = ?", (eval_id,))
         found_builds = []
         for [build_id, status] in known_builds:
             found_builds.append((build_id, status))
         return found_builds
 
     def get_build_id(self, build_id):
-        res = self.cursor.execute("SELECT id, status FROM build_results WHERE id = ?", (build_id,))
+        res = self.cursor.execute("SELECT build_id, status FROM build_results WHERE build_id = ?", (build_id,))
         return res.fetchone()
+
+    def get_jobset_id(self, url, jobset):
+        res = self.cursor.execute("""SELECT jobset_id FROM jobsets WHERE url = ? and jobset = ?""", (url, jobset,))
+        return res.fetchone()[0]
 
     def get_attr_file(self, attribute):
         res = self.cursor.execute("SELECT file FROM attr_files WHERE attribute = ?", (attribute,))
         return res.fetchone()
 
     def update_build_status(self, build_id, new_status):
-        self.cursor.execute("UPDATE build_results SET status = ? WHERE id = ?", (new_status, build_id))
+        self.cursor.execute("UPDATE build_results SET status = ? WHERE build_id = ?", (new_status, build_id))
         self.connection.commit()
 
     def update_attr_file(self, attribute, file):
@@ -177,19 +194,19 @@ class Database:
         # Select only latest builds (highest timestamp per job.system combination)
         # TODO(Mindavi): only use the latest eval(s) per jobset, because packages might be marked broken or removed
         res = self.cursor.execute(
-            "SELECT * FROM (SELECT id, url, jobset, eval_id, max(eval_timestamp), status, job, system FROM build_results WHERE status IS NOT NULL GROUP BY job, system) WHERE status != 0")
+            "SELECT * FROM (SELECT build_id, url, jobset, eval_id, max(eval_timestamp), status, job, system FROM build_results INNER JOIN jobsets ON jobsets.jobset_id == build_results.jobset_id WHERE status IS NOT NULL GROUP BY job, system) WHERE status != 0")
         return res.fetchall()
 
     def get_builds_without_status(self):
-        res = self.cursor.execute("SELECT id, status, job, system, url, jobset, eval_id FROM build_results WHERE status IS NULL")
+        res = self.cursor.execute("SELECT build_id, status, job, system, url, jobset, eval_id FROM build_results INNER JOIN jobsets ON jobsets.jobset_id == build_results.jobset_id WHERE status IS NULL")
         return res.fetchall()
 
     def get_estimated_last_working_build(self, jobname, system):
-        res = self.cursor.execute("SELECT id, status, max(eval_timestamp) FROM build_results WHERE status = 0 AND job = ? AND system = ?", (jobname, system))
+        res = self.cursor.execute("SELECT build_id, status, max(eval_timestamp) FROM build_results WHERE status = 0 AND job = ? AND system = ?", (jobname, system))
         return res.fetchone()
 
     def get_all_last_completed_builds(self):
-        res = self.cursor.execute("SELECT id, status, job, system, url, jobset FROM (SELECT id, status, job, system, url, jobset, max(eval_timestamp) over (partition by job, system) max_eval_timestamp FROM build_results WHERE status IS NOT NULL) GROUP by job,system")
+        res = self.cursor.execute("SELECT build_id, status, job, system, url, jobset FROM (SELECT id, status, job, system, url, jobset, max(eval_timestamp) over (partition by job, system) max_eval_timestamp FROM build_results INNER JOIN jobsets ON jobsets.jobset_id == build_results.jobset_id WHERE status IS NOT NULL) GROUP by job,system")
         return res.fetchall()
 
 def get_build_result(baseurl, build_id):
@@ -418,7 +435,7 @@ if __name__ == "__main__":
     parser.add_argument('--jobset', default='nixpkgs/trunk', required=False, help="The jobset to use (e.g. nixpkgs/trunk, nixpkgs/nixpkgs-unstable-aarch64-darwin)")
     parser.add_argument('--use-cached', action='store_true')
     parser.add_argument('--list-broken-pkgs', action='store_true')
-    parser.add_argument('--db-path', default='hydra.db', required=False)
+    parser.add_argument('--db-path', default='hydra2.db', required=False)
     parser.add_argument('--list-pkg-paths', action='store_true')
     parser.add_argument('--update-missing-status', action='store_true')
     parser.add_argument('--nixpkgs-path', type=str)
