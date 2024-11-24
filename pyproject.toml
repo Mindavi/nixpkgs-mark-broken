@@ -1,0 +1,21 @@
+[project]
+name = "nixpkgs-mark-broken"
+version = "0.0.1"
+description = ""
+authors = [
+  {name = "Rick van Schijndel", email = "rol3517@gmail.com" }
+]
+# readme = "README.md"
+# license = "BSD"
+requires-python = "^3.10"
+dependencies = [
+  "requests"
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project.scripts]
+nixpkgs-mark-broken = "nixpkgs-broken"
+

@@ -6,3 +6,4 @@ evals-*-*.json
 evals.json
 hydra.db
 __pycache__/
+cache/
