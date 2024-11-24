@@ -1,6 +1,7 @@
 { stdenv
 , lib
 , python3Packages
+, gnused
 }:
 
 python3Packages.buildPythonPackage {
@@ -12,5 +13,9 @@ python3Packages.buildPythonPackage {
 
   doCheck = true;
 
-  propagatedBuildInputs = with python3Packages; [ pytest requests setuptools ];
+  propagatedBuildInputs = with python3Packages; [ pytest requests setuptools gnused ];
+
+  meta = {
+    mainProgram = "broken";
+  };
 }

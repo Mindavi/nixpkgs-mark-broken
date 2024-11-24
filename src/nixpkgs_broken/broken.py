@@ -1,6 +1,3 @@
-#! /usr/bin/env nix-shell
-#! nix-shell -i python3 --pure -p "pkgs.python3.withPackages(ps: with ps; [ requests ])" nix
-
 # consider using click to make the CLI
 # - update (updates the local database with the latest eval)
 # - update --eval <eval_id> (updates the local database with a specific eval)
@@ -25,7 +22,7 @@ import requests
 import sqlite3
 import subprocess
 import sys
-import mark_broken_v2
+import nixpkgs_broken.mark_broken_v2
 
 class EvalFetcher:
     def fetch(self, baseurl, jobset):
@@ -35,7 +32,8 @@ class EvalFetcher:
 
         baseurl_hash = hashlib.sha1(baseurl.encode()).hexdigest()[:8]
         jobset_hash = hashlib.sha1(jobset.encode()).hexdigest()[:8]
-        filename = f"evals-{baseurl_hash}-{jobset_hash}.json"
+        filename = f"cache/evals-{baseurl_hash}-{jobset_hash}.json"
+        os.makedirs("cache")
         print(f"Create eval cache with filename {filename}")
         with open(filename, "w") as eval_file:
             print(evals.text, file=eval_file)
@@ -48,10 +46,10 @@ class EvalFetcher:
 
         return all_evals
 
-    def get_cache(self):
+    def get_cache(self, baseurl, jobset):
         baseurl_hash = hashlib.sha1(baseurl.encode()).hexdigest()[:8]
         jobset_hash = hashlib.sha1(jobset.encode()).hexdigest()[:8]
-        filename = f"evals-{baseurl_hash}-{jobset_hash}.json"
+        filename = f"cache/evals-{baseurl_hash}-{jobset_hash}.json"
         print(f"Loading cache from {filename}")
         with open(filename, "r") as eval_file:
             return json.load(eval_file)["evals"]
@@ -67,15 +65,16 @@ class BuildsInEvalFetcher:
 
         baseurl_hash = hashlib.sha1(baseurl.encode()).hexdigest()[:8]
         jobset_hash = hashlib.sha1(jobset.encode()).hexdigest()[:8]
-        with open(f"builds-{baseurl_hash}-{jobset_hash}.json", "w") as build_file:
+        os.makedirs("cache")
+        with open(f"cache/builds-{baseurl_hash}-{jobset_hash}.json", "w") as build_file:
             print(builds.text, file=build_file)
 
         return all_builds_in_eval
 
-    def get_cache(self):
+    def get_cache(self, baseurl, jobset):
         baseurl_hash = hashlib.sha1(baseurl.encode()).hexdigest()[:8]
         jobset_hash = hashlib.sha1(jobset.encode()).hexdigest()[:8]
-        with open(f"builds-{baseurl_hash}-{jobset_hash}.json", "r") as build_file:
+        with open(f"cache/builds-{baseurl_hash}-{jobset_hash}.json", "r") as build_file:
             return json.load(build_file)["builds"]
 
 class Database:
@@ -467,7 +466,7 @@ def cli():
 
     evalfetcher = EvalFetcher()
     if use_cached:
-        all_evals = evalfetcher.get_cache()
+        all_evals = evalfetcher.get_cache(baseurl, jobset)
     else:
         all_evals = evalfetcher.fetch(baseurl, jobset)
 
@@ -477,7 +476,7 @@ def cli():
 
     buildsinevalfetcher = BuildsInEvalFetcher()
     if use_cached:
-        all_builds_in_eval = buildsinevalfetcher.get_cache()
+        all_builds_in_eval = buildsinevalfetcher.get_cache(baseurl, jobset)
     else:
         all_builds_in_eval = buildsinevalfetcher.fetch(baseurl, last_eval_id)
 

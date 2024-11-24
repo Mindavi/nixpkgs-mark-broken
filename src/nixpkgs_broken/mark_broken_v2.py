@@ -1,6 +1,3 @@
-#!/usr/bin/env nix-shell
-#!nix-shell --pure -i python3 -p nix gnused "python3.withPackages( ps: with ps; [ ] )"
-
 import filecmp
 import json
 import os
