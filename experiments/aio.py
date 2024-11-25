@@ -14,8 +14,10 @@ async def get_job(session, url):
         return build_info
 
 async def main():
+    print("App start")
     conn = aiohttp.TCPConnector(limit=10)
-    async with aiohttp.ClientSession(connector=conn) as session:
+    timeout = aiohttp.ClientTimeout(total=60)
+    async with aiohttp.ClientSession(connector=conn, timeout=timeout) as session:
         tasks = []
         for number in range(142461210, 142461210 + 300):
             hydra_url = f'https://hydra.nixos.org/build/{number}'
