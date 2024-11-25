@@ -283,7 +283,7 @@ def list_package_paths(database, nixpkgs_path):
     assert(len(res) > 0)
     counter = 0
     done = set()
-    for [id, status, jobname, system, url, jobset] in res:
+    for [build_id, status, jobname, system, url, jobset] in res:
         counter += 1
         if counter % 500 == 0 and counter != 0:
             print(f"Processing... {counter}/{len(res)}")
@@ -309,6 +309,8 @@ def list_package_paths(database, nixpkgs_path):
                 database.remove_attr_file(jobname)
                 file = None
         if not file:
+            assert nixpkgs_path, "nixpkgs_path argument is required"
+            assert jobname, "missing job name"
             nixInstantiate = subprocess.run([ "nix-instantiate", "--eval", "--json", "-E", f"with import {nixpkgs_path} {{}}; (builtins.unsafeGetAttrPos \"description\" {jobname}.meta).file" ], capture_output=True)
             if nixInstantiate.returncode != 0:
                 errorMessage = nixInstantiate.stderr.decode('utf-8')
@@ -338,10 +340,10 @@ def list_broken_pkgs(database):
     never_built_ok = []
     previously_successful = []
     print(f"There are {len(broken_builds)} builds to consider")
-    # id, url, jobset, eval_id, max(eval_timestamp), status, job, system
+    # build_id, url, jobset, eval_id, max(eval_timestamp), status, job, system
     broken_builds.sort(key=lambda k:k[6])
     counter = 0
-    for [id, baseurl, jobset, eval_id, eval_timestamp, status, jobname, system] in broken_builds:
+    for [build_id, baseurl, jobset, eval_id, eval_timestamp, status, jobname, system] in broken_builds:
         if counter % 100 == 0 and counter != 0:
             print(f"Checked {counter}/{len(broken_builds)} packages")
         counter += 1
@@ -354,7 +356,7 @@ def list_broken_pkgs(database):
         # - https://github.com/NixOS/nixpkgs/pull/206348
         # - https://github.com/NixOS/nixpkgs/pull/203997#issuecomment-1352674741
         if 'subunit' in jobname:
-            print(f"Skipping subunit package with jobname {jobname} and build id {id}")
+            print(f"Skipping subunit package with jobname {jobname} and build id {build_id}")
             continue
         if (jobname, system, status) in already_done_jobs:
             #print(f"Skip duplicate job {job}.{system}")
@@ -363,18 +365,18 @@ def list_broken_pkgs(database):
         if lwb_id != None:
             #lwb_human_time = datetime.datetime.fromtimestamp(lwb_timestamp)
             #print(f"last working build: {jobname}.{system}, status: {lwb_status}, timestamp: {lwb_human_time}, id: {lwb_id}")
-            previously_successful.append((id, status, jobname, system, lwb_timestamp, baseurl, jobset))
+            previously_successful.append((build_id, status, jobname, system, lwb_timestamp, baseurl, jobset))
             continue
         already_done_jobs.append((jobname, system, status))
         url = f"{baseurl}/job/{jobset}/{jobname}.{system}/latest"
         overview_url = f"{baseurl}/job/{jobset}/{jobname}.{system}"
         res = requests.get(url, headers={"Accept": "application/json"}).json()
         if 'error' in res:
-            never_built_ok.append((id, status, jobname, system, baseurl, jobset))
+            never_built_ok.append((build_id, status, jobname, system, baseurl, jobset))
         else:
             res_timestamp = res["timestamp"]
             human_time = datetime.datetime.fromtimestamp(res_timestamp)
-            previously_successful.append((id, status, jobname, system, res_timestamp, baseurl, jobset))
+            previously_successful.append((build_id, status, jobname, system, res_timestamp, baseurl, jobset))
             # Insert into database
             res_build_id = res["id"]
             # Just grab the latest, it shouldn't matter too much for now.
