@@ -205,7 +205,7 @@ class Database:
         return res.fetchone()
 
     def get_all_last_completed_builds(self):
-        res = self.cursor.execute("SELECT build_id, status, job, system, url, jobset FROM (SELECT id, status, job, system, url, jobset, max(eval_timestamp) over (partition by job, system) max_eval_timestamp FROM build_results INNER JOIN jobsets ON jobsets.jobset_id == build_results.jobset_id WHERE status IS NOT NULL) GROUP by job,system")
+        res = self.cursor.execute("SELECT build_id, status, job, system, url, jobset FROM (SELECT build_id, status, job, system, url, jobset, max(eval_timestamp) over (partition by job, system) max_eval_timestamp FROM build_results INNER JOIN jobsets ON jobsets.jobset_id == build_results.jobset_id WHERE status IS NOT NULL) GROUP by job,system")
         return res.fetchall()
 
 def get_build_result(baseurl, build_id):
