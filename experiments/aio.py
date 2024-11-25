@@ -15,20 +15,35 @@ async def get_job(session, url):
 
 async def main():
     print("App start")
-    conn = aiohttp.TCPConnector(limit=10)
+    conn = aiohttp.TCPConnector(limit=20)
     timeout = aiohttp.ClientTimeout(total=60)
     async with aiohttp.ClientSession(connector=conn, timeout=timeout) as session:
-        tasks = []
+        tasks = set()
         for number in range(142461210, 142461210 + 300):
             hydra_url = f'https://hydra.nixos.org/build/{number}'
-            tasks.append(asyncio.ensure_future(get_job(session, hydra_url)))
+            task = asyncio.ensure_future(get_job(session, hydra_url))
+            tasks.add(task)
+            task.add_done_callback(tasks.discard)
 
-        job_info = await asyncio.gather(*tasks)
-        for job in job_info:
-            name = job['job']
-            id = job['id']
-            status = job['buildstatus']
-            print(f'job name: {name}, id {id}, status {status}')
+        previous = 0
+        while(len(tasks) > 0):
+            if len(tasks) != previous:
+                previous = len(tasks)
+                print(f"still {len(tasks)} to be done")
+            done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            for task in done:
+                job = task.result()
+                name = job['job']
+                id = job['id']
+                status = job['buildstatus']
+                print(f'job name: {name}, id {id}, status {status}')
+
+        # job_info = await asyncio.gather(*tasks)
+        # for job in job_info:
+        #     name = job['job']
+        #     id = job['id']
+        #     status = job['buildstatus']
+        #     print(f'job name: {name}, id {id}, status {status}')
 
 asyncio.run(main())
 elapsed_time = time.time() - start_time
